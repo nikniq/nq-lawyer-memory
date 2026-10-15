@@ -44,6 +44,21 @@ class ScoreTest extends TestCase
             ->assertJson(['score' => Score::compute('expert', 20, 90000)]);
     }
 
+    public function test_summary_reports_players_and_percent_beaten(): void
+    {
+        foreach ([10, 14, 20, 30] as $moves) {
+            Score::create(['name' => 'P', 'level' => 'normal', 'mode' => 'icons', 'daily' => '2026-10-16', 'moves' => $moves, 'time_ms' => 50000, 'score' => Score::compute('normal', $moves, 50000)]);
+        }
+
+        $this->getJson('/api/scores/summary?level=normal&mode=icons&daily=2026-10-16&moves=14')
+            ->assertOk()
+            ->assertJson(['players' => 4, 'avg_moves' => 18.5, 'beat_percent' => 50]);
+
+        $this->getJson('/api/scores/summary?level=normal&mode=icons')
+            ->assertOk()
+            ->assertJson(['players' => 0, 'avg_moves' => null, 'beat_percent' => null]);
+    }
+
     public function test_implausible_results_are_rejected(): void
     {
         $this->postJson('/api/scores', ['name' => 'Cheat', 'level' => 'hard', 'mode' => 'icons', 'moves' => 3, 'time_ms' => 30000])->assertStatus(422);

@@ -30,6 +30,42 @@ class ScoreController extends Controller
         return response()->json(['scores' => $scores]);
     }
 
+    /**
+     * How a board has gone for everyone: players, average moves, and the
+     * share of filed results the caller's own moves beat.
+     */
+    public function summary(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'level' => ['required', Rule::in(array_keys(Score::PAIRS))],
+            'mode' => ['required', Rule::in(Score::MODES)],
+            'daily' => ['nullable', 'date_format:Y-m-d'],
+            'moves' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $base = Score::query()
+            ->where('level', $data['level'])
+            ->where('mode', $data['mode'])
+            ->where('daily', $data['daily'] ?? null);
+
+        $players = (clone $base)->count();
+        $avgMoves = $players ? round((clone $base)->avg('moves'), 1) : null;
+        $avgTime = $players ? (int) round((clone $base)->avg('time_ms')) : null;
+
+        $beat = null;
+        if ($players && isset($data['moves'])) {
+            $worse = (clone $base)->where('moves', '>', $data['moves'])->count();
+            $beat = (int) round($worse / $players * 100);
+        }
+
+        return response()->json([
+            'players' => $players,
+            'avg_moves' => $avgMoves,
+            'avg_time_ms' => $avgTime,
+            'beat_percent' => $beat,
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

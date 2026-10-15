@@ -60,25 +60,28 @@
     { id: 16, term: 'Audi alteram partem',    def: 'Hear the other side' },
   ];
 
-  const DECKS = { icons: ICONS, terms: TERMS, maxims: MAXIMS };
-  const DECK_NAMES = { icons: 'Icons', terms: 'Legal terms', maxims: 'Latin maxims' };
+  const DECK_NAMES = { icons: 'Icons', terms: 'Legal terms', maxims: 'Latin maxims', custom: 'My deck' };
+  const ONLINE_MODES = ['icons', 'terms', 'maxims'];   // what the leaderboard accepts
 
   const LEVELS = {
-    easy:   { pairs: 6,  cols: 4, trial: 60 },
-    normal: { pairs: 8,  cols: 4, trial: 90 },
-    hard:   { pairs: 12, cols: 6, trial: 150 },
-    expert: { pairs: 16, cols: 8, trial: 210 },
+    easy:   { pairs: 6,  cols: 4, trial: 60,  ai: 0.45 },
+    normal: { pairs: 8,  cols: 4, trial: 90,  ai: 0.7 },
+    hard:   { pairs: 12, cols: 6, trial: 150, ai: 0.88 },
+    expert: { pairs: 16, cols: 8, trial: 210, ai: 0.97 },
   };
 
   const PLAYERS = [
     { name: 'Prosecution', emoji: '🔵' },
     { name: 'Defence',     emoji: '🟠' },
   ];
+  const COMPUTER = { name: 'Counsel Bot', emoji: '🤖' };
 
   const MISMATCH_DELAY = 900;
+  const AI_STEP = 650;
   const HINTS_PER_GAME = 3;
   const HINT_PENALTY = 2;
   const PREVIEW_MS = 1500;
+  const MIN_CUSTOM_PAIRS = 6;
   const DAILY_EPOCH = Date.UTC(2026, 0, 1);
 
   const ACHIEVEMENTS = [
@@ -91,8 +94,10 @@
     { id: 'classic',  icon: '🏺', name: 'Classicist',        desc: 'Win a Latin maxims game' },
     { id: 'clock',    icon: '⏱️', name: 'Beat the Clock',    desc: 'Win a Trial-mode game' },
     { id: 'versus',   icon: '🏆', name: 'Winning Counsel',   desc: 'Win a Versus match' },
+    { id: 'bot',      icon: '🤖', name: 'Outsmarted',        desc: 'Beat Counsel Bot on Hard or Expert' },
     { id: 'daily3',   icon: '📅', name: 'Regular Counsel',   desc: 'Close the Daily Case three days running' },
     { id: 'expert',   icon: '👑', name: 'Senior Counsel',    desc: 'Win on Expert' },
+    { id: 'author',   icon: '✒️', name: 'Author',            desc: 'Win a game with your own deck' },
   ];
 
   const KEYS = {
@@ -100,6 +105,8 @@
     stats: 'legal-memory-stats',
     prefs: 'legal-memory-prefs',
     ach: 'legal-memory-achievements',
+    weak: 'legal-memory-weak',
+    custom: 'legal-memory-custom-deck',
   };
 
   // ---------- elements ----------
@@ -111,19 +118,25 @@
     moves: $('movesCount'), timer: $('timer'), timerLabel: $('timerLabel'),
     streak: $('streakCount'), score: $('scoreCount'), scoreStat: $('scoreStat'),
     difficulty: $('difficulty'), mode: $('mode'), rules: $('rules'),
-    daily: $('dailyBtn'), hint: $('hintBtn'), reset: $('resetBtn'),
+    customOption: $('customOption'),
+    focus: $('focusToggle'), focusWrap: $('focusWrap'),
+    daily: $('dailyBtn'), hint: $('hintBtn'), pause: $('pauseBtn'), reset: $('resetBtn'),
     sound: $('soundBtn'), theme: $('themeBtn'),
     bestLine: $('bestLine'), bestText: $('bestText'),
     statsLine: $('statsLine'),
     players: $('players'),
+    summary: $('summaryLine'),
     overlay: $('winOverlay'), modalEmoji: $('modalEmoji'), winTitle: $('winTitle'), winText: $('winText'),
+    winCompare: $('winCompare'),
     winRecord: $('winRecord'), playAgain: $('playAgainBtn'),
     submitForm: $('submitForm'), nameInput: $('nameInput'), submitBtn: $('submitBtn'),
     submitMsg: $('submitMsg'), shareBtn: $('shareBtn'),
     review: $('review'), reviewList: $('reviewList'),
     boardTitle: $('boardTitle'),
+    pausedOverlay: $('pausedOverlay'), resumeBtn: $('resumeBtn'),
     lbSection: $('leaderboard'), lbTitle: $('lbTitle'), lbList: $('lbList'), lbEmpty: $('lbEmpty'),
     achList: $('achList'), achCount: $('achCount'),
+    customText: $('customText'), customSave: $('customSave'), customClear: $('customClear'), customMsg: $('customMsg'),
     toasts: $('toasts'),
     confetti: $('confetti'),
   };
@@ -139,11 +152,17 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* unavailable */ }
   }
 
-  const prefs = Object.assign({ level: 'normal', mode: 'icons', rules: 'classic', sound: true, theme: 'auto', name: '' }, load(KEYS.prefs, {}));
+  const prefs = Object.assign({ level: 'normal', mode: 'icons', rules: 'classic', sound: true, theme: 'auto', name: '', focus: false }, load(KEYS.prefs, {}));
   const stats = Object.assign({ played: 0, won: 0, bestStreak: 0, dailyStreak: 0, lastDaily: null }, load(KEYS.stats, {}));
   const unlocked = load(KEYS.ach, {});
+  const weak = load(KEYS.weak, {});          // "mode:id" -> lifetime misses
+  let customDeck = load(KEYS.custom, []);    // [{id, term, def}]
+
+  const DECKS = { icons: ICONS, terms: TERMS, maxims: MAXIMS, get custom() { return customDeck; } };
+
   if (!LEVELS[prefs.level]) prefs.level = 'normal';
-  if (!DECKS[prefs.mode]) prefs.mode = 'icons';
+  if (!DECK_NAMES[prefs.mode] || (prefs.mode === 'custom' && customDeck.length < MIN_CUSTOM_PAIRS)) prefs.mode = 'icons';
+  if (!['classic', 'trial', 'versus', 'computer'].includes(prefs.rules)) prefs.rules = 'classic';
 
   // ---------- state ----------
 
@@ -161,17 +180,24 @@
     elapsed: 0,
     timerId: null,
     finished: false,
+    paused: false,
     player: 0,
     playerPairs: [0, 0],
-    misses: {},          // pair id -> times it was flipped and not matched
+    misses: {},
+    aiMemory: new Map(),   // card key -> pair id the computer remembers
+    aiTimer: null,
   };
 
   const level = () => LEVELS[prefs.level];
-  const isVersus = () => prefs.rules === 'versus';
+  const isVersus = () => prefs.rules === 'versus' || prefs.rules === 'computer';
+  const isComputer = () => prefs.rules === 'computer';
   const isTrial = () => prefs.rules === 'trial';
   const isTermDeck = () => prefs.mode !== 'icons';
+  const isOnline = () => ONLINE_MODES.includes(prefs.mode) && !isVersus();
   const trialMs = () => level().trial * 1000;
+  const pairsForGame = () => Math.min(level().pairs, DECKS[prefs.mode].length);
   const bestKey = () => `${prefs.mode}-${prefs.level}${state.daily ? '-' + dailyDate() : ''}`;
+  const opponent = () => (isComputer() ? COMPUTER : PLAYERS[1]);
 
   // ---------- randomness ----------
 
@@ -215,7 +241,7 @@
 
   // Mirrors Score::compute on the server.
   function computeScore(moves, ms) {
-    const pairs = level().pairs;
+    const pairs = pairsForGame();
     const extra = Math.max(0, moves - pairs);
     return Math.max(0, pairs * 1000 - extra * 25 - Math.floor(ms / 500));
   }
@@ -224,7 +250,7 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  // ---------- sound ----------
+  // ---------- sound & haptics ----------
 
   let audioCtx = null;
   function tone(freq, duration = 0.08, type = 'sine', when = 0, gain = 0.08) {
@@ -242,14 +268,18 @@
       osc.stop(audioCtx.currentTime + when + duration);
     } catch { /* audio unavailable */ }
   }
+  function buzz(pattern) {
+    if (!prefs.sound) return;
+    try { navigator.vibrate?.(pattern); } catch { /* unsupported */ }
+  }
   const sfx = {
     flip:  () => tone(520, 0.05, 'triangle'),
-    match: () => { tone(660, 0.1); tone(880, 0.15, 'sine', 0.08); },
-    miss:  () => tone(180, 0.2, 'sawtooth', 0, 0.05),
+    match: () => { tone(660, 0.1); tone(880, 0.15, 'sine', 0.08); buzz(30); },
+    miss:  () => { tone(180, 0.2, 'sawtooth', 0, 0.05); buzz([20, 40, 20]); },
     hint:  () => tone(440, 0.1, 'square', 0, 0.04),
     tick:  () => tone(900, 0.04, 'square', 0, 0.03),
-    win:   () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, 'sine', i * 0.12)),
-    lose:  () => [392, 330, 262].forEach((f, i) => tone(f, 0.3, 'triangle', i * 0.2, 0.06)),
+    win:   () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, 'sine', i * 0.12)); buzz([40, 60, 40, 60, 80]); },
+    lose:  () => { [392, 330, 262].forEach((f, i) => tone(f, 0.3, 'triangle', i * 0.2, 0.06)); buzz(200); },
     unlock: () => [784, 988, 1175].forEach((f, i) => tone(f, 0.12, 'sine', i * 0.07, 0.05)),
   };
 
@@ -301,13 +331,83 @@
       </li>`).join('');
   }
 
+  // ---------- custom deck ----------
+
+  function parseCustomDeck(text) {
+    const pairs = [];
+    text.split(/\r?\n/).forEach((line) => {
+      const m = line.trim().match(/^(.+?)\s*(?:—|–|\||::|:|-|=)\s*(.+)$/);
+      if (!m) return;
+      const term = m[1].trim().slice(0, 40);
+      const def = m[2].trim().slice(0, 80);
+      if (term && def) pairs.push({ id: pairs.length + 1, term, def });
+    });
+    return pairs;
+  }
+
+  function renderCustomDeck() {
+    const ok = customDeck.length >= MIN_CUSTOM_PAIRS;
+    el.customOption.disabled = !ok;
+    el.customOption.textContent = ok ? `My deck (${customDeck.length})` : `My deck (need ${MIN_CUSTOM_PAIRS}+)`;
+    el.customText.value = customDeck.map((p) => `${p.term} — ${p.def}`).join('\n');
+    el.customClear.hidden = !customDeck.length;
+  }
+
+  function saveCustomDeck() {
+    const pairs = parseCustomDeck(el.customText.value);
+    if (pairs.length < MIN_CUSTOM_PAIRS) {
+      el.customMsg.textContent = `Found ${pairs.length} pair${pairs.length === 1 ? '' : 's'}. You need at least ${MIN_CUSTOM_PAIRS}, one per line as "term — definition".`;
+      return;
+    }
+    customDeck = pairs.slice(0, 40);
+    save(KEYS.custom, customDeck);
+    el.customMsg.textContent = `Saved ${customDeck.length} pairs. Pick "My deck" to play it.`;
+    renderCustomDeck();
+    prefs.mode = 'custom';
+    el.mode.value = 'custom';
+    save(KEYS.prefs, prefs);
+    newGame();
+  }
+
+  function clearCustomDeck() {
+    customDeck = [];
+    save(KEYS.custom, customDeck);
+    el.customMsg.textContent = 'Deck cleared.';
+    if (prefs.mode === 'custom') { prefs.mode = 'icons'; el.mode.value = 'icons'; save(KEYS.prefs, prefs); }
+    renderCustomDeck();
+    newGame();
+  }
+
+  // ---------- weak-term focus ----------
+
+  const weakKey = (id) => `${prefs.mode}:${id}`;
+  const lifetimeMisses = (id) => weak[weakKey(id)] || 0;
+
+  // Deal the pairs the player has missed most, then fill the rest at random.
+  function pickPairs(deck, n, rand) {
+    const base = shuffle(deck, rand);
+    if (!prefs.focus || !isTermDeck() || state.daily) return base.slice(0, n);
+    const weakOnes = base.filter((p) => lifetimeMisses(p.id) > 0).sort((a, b) => lifetimeMisses(b.id) - lifetimeMisses(a.id));
+    const focusCount = Math.min(weakOnes.length, Math.ceil(n * 0.6));
+    const chosen = weakOnes.slice(0, focusCount);
+    const rest = base.filter((p) => !chosen.includes(p));
+    return [...chosen, ...rest].slice(0, n);
+  }
+
+  function renderFocus() {
+    el.focusWrap.hidden = !isTermDeck();
+    el.focus.checked = prefs.focus;
+    const known = Object.keys(weak).filter((k) => k.startsWith(`${prefs.mode}:`)).length;
+    el.focusWrap.title = known ? `${known} term${known === 1 ? '' : 's'} on your watch list` : 'Nothing missed yet';
+  }
+
   // ---------- timer ----------
 
   function renderTimer() {
     if (isTrial()) {
       const left = trialMs() - state.elapsed;
       el.timer.textContent = formatTime(left);
-      el.timer.classList.toggle('is-urgent', left <= 10000 && !state.finished);
+      el.timer.classList.toggle('is-urgent', left <= 10000 && !state.finished && !state.paused);
     } else {
       el.timer.textContent = formatTime(state.elapsed);
     }
@@ -315,7 +415,7 @@
 
   let lastTickSecond = -1;
   function startTimer() {
-    if (state.timerId || state.finished) return;
+    if (state.timerId || state.finished || state.paused) return;
     state.startedAt = Date.now() - state.elapsed;
     state.timerId = setInterval(() => {
       state.elapsed = Date.now() - state.startedAt;
@@ -338,18 +438,33 @@
     renderTimer();
   }
 
+  // ---------- pause ----------
+
+  function setPaused(on) {
+    if (!state.started || state.finished) return;
+    if (on === state.paused) return;
+    state.paused = on;
+    if (on) { stopTimer(); clearTimeout(state.aiTimer); }
+    else { startTimer(); if (isComputer() && state.player === 1 && !state.locked) scheduleAi(); }
+    el.pausedOverlay.hidden = !on;
+    el.board.classList.toggle('is-paused', on);
+    el.pause.textContent = on ? 'Resume' : 'Pause';
+    el.pause.setAttribute('aria-pressed', String(on));
+    if (on) el.resumeBtn.focus();
+  }
+
   // ---------- game ----------
 
   function buildDeck(rand) {
-    const { pairs } = level();
+    const n = pairsForGame();
     const deck = DECKS[prefs.mode];
     if (isTermDeck()) {
-      return shuffle(deck, rand).slice(0, pairs).flatMap((t) => [
+      return pickPairs(deck, n, rand).flatMap((t) => [
         { id: t.id, face: 'term', title: t.term, text: '', label: t.term, term: t.term, def: t.def },
         { id: t.id, face: 'def',  title: '', text: t.def, label: `Definition: ${t.def}`, term: t.term, def: t.def },
       ]);
     }
-    return shuffle(deck, rand).slice(0, pairs).flatMap((c) => [
+    return shuffle(deck, rand).slice(0, n).flatMap((c) => [
       { id: c.id, face: 'icon', icon: c.icon, title: c.name, label: c.name },
       { id: c.id, face: 'icon', icon: c.icon, title: c.name, label: c.name },
     ]);
@@ -357,34 +472,43 @@
 
   function newGame() {
     stopTimer();
+    clearTimeout(state.aiTimer);
     lastTickSecond = -1;
-    const { pairs, cols } = level();
+    if (state.daily && prefs.mode === 'custom') state.daily = false;
+    const pairs = pairsForGame();
+    const cols = pairs >= 16 ? 8 : pairs >= 12 ? 6 : 4;
     const rand = state.daily ? mulberry32(hashString(`${dailyDate()}|${prefs.mode}|${prefs.level}`)) : Math.random;
 
     state.cards = shuffle(buildDeck(rand), rand).map((c, i) => ({ ...c, key: i, flipped: false, matched: false }));
     Object.assign(state, {
       flipped: [], matched: 0, moves: 0, streak: 0, hintsUsed: 0,
-      locked: false, started: false, startedAt: null, elapsed: 0, finished: false,
-      player: 0, playerPairs: [0, 0], misses: {},
+      locked: false, started: false, startedAt: null, elapsed: 0, finished: false, paused: false,
+      player: 0, playerPairs: [0, 0], misses: {}, aiMemory: new Map(), aiTimer: null,
     });
 
     el.board.style.setProperty('--cols', cols);
     el.board.classList.toggle('board--terms', isTermDeck());
     el.board.classList.toggle('board--dense', pairs >= 12);
+    el.board.classList.remove('is-paused');
+    el.pausedOverlay.hidden = true;
+    el.pause.textContent = 'Pause';
+    el.pause.setAttribute('aria-pressed', 'false');
     el.pairsTotal.textContent = pairs;
     el.overlay.hidden = true;
     el.daily.classList.toggle('is-active', state.daily);
     el.daily.setAttribute('aria-pressed', String(state.daily));
+    el.daily.disabled = prefs.mode === 'custom';
     el.timerLabel.textContent = isTrial() ? 'Time left' : 'Time';
     el.timer.classList.remove('is-urgent');
     el.scoreStat.hidden = isVersus();
     el.players.hidden = !isVersus();
-    el.lbSection.hidden = isVersus();
+    el.lbSection.hidden = !isOnline();
+    el.summary.hidden = true;
 
-    const rulesName = { classic: '', trial: ' · Trial', versus: ' · Versus' }[prefs.rules];
+    const rulesName = { classic: '', trial: ' · Trial', versus: ' · Versus', computer: ' · vs Counsel Bot' }[prefs.rules];
     el.boardTitle.textContent = state.daily
       ? `Daily Case #${dailyNumber()} · ${dailyDate()}${rulesName}`
-      : `${DECK_NAMES[prefs.mode]} · ${prefs.level}${rulesName}`;
+      : `${DECK_NAMES[prefs.mode]} · ${prefs.level}${rulesName}${prefs.focus && isTermDeck() ? ' · focus' : ''}`;
 
     renderBoard();
     renderTimer();
@@ -392,7 +516,8 @@
     renderPlayers();
     renderBest();
     renderStatsLine();
-    if (!isVersus()) loadLeaderboard();
+    renderFocus();
+    if (isOnline()) { loadLeaderboard(); loadSummary(); }
 
     if (prefs.level === 'easy') preview();
   }
@@ -449,23 +574,42 @@
     node.disabled = card.matched;
   }
 
-  function flip(key) {
-    if (state.locked || state.finished) return;
-    const card = state.cards[key];
-    if (!card || card.flipped || card.matched) return;
+  function beginIfNeeded() {
+    if (state.started) return;
+    state.started = true;
+    stats.played++;
+    save(KEYS.stats, stats);
+    renderStatsLine();
+  }
 
-    if (!state.started) { state.started = true; stats.played++; save(KEYS.stats, stats); renderStatsLine(); }
+  // The computer notices every card that is turned face up, and remembers it
+  // with a probability set by the level.
+  function aiObserve(card) {
+    if (!isComputer()) return;
+    if (Math.random() < level().ai) state.aiMemory.set(card.key, card.id);
+  }
+
+  function reveal(card) {
+    beginIfNeeded();
     startTimer();
     sfx.flip();
     card.flipped = true;
     state.flipped.push(card);
     setCardView(card);
-
+    aiObserve(card);
     if (state.flipped.length === 2) {
       state.moves++;
       updateStats();
       checkMatch();
     }
+  }
+
+  function flip(key) {
+    if (state.locked || state.finished || state.paused) return;
+    if (isComputer() && state.player === 1) return;
+    const card = state.cards[key];
+    if (!card || card.flipped || card.matched) return;
+    reveal(card);
   }
 
   function checkMatch() {
@@ -477,23 +621,34 @@
       a.owner = b.owner = state.player;
       state.flipped = [];
       state.matched++;
-      state.streak++;
+      state.aiMemory.delete(a.key); state.aiMemory.delete(b.key);
+      if (state.player === 0 || !isVersus()) {
+        state.streak++;
+        if (state.streak > stats.bestStreak) { stats.bestStreak = state.streak; save(KEYS.stats, stats); }
+        if (state.streak >= 5) unlock('streak5');
+      }
       if (isVersus()) state.playerPairs[state.player]++;
-      if (state.streak > stats.bestStreak) { stats.bestStreak = state.streak; save(KEYS.stats, stats); }
-      if (state.streak >= 5) unlock('streak5');
       sfx.match();
       setCardView(a); setCardView(b);
-      if (state.streak >= 2) [a, b].forEach((c) => cardEl(c.key).classList.add('is-combo'));
+      if (state.streak >= 2 && state.player === 0) [a, b].forEach((c) => cardEl(c.key).classList.add('is-combo'));
       updateStats();
       renderPlayers();
-      if (state.matched === level().pairs) setTimeout(win, 600);
+      if (state.matched === pairsForGame()) { setTimeout(win, 600); return; }
+      if (isComputer() && state.player === 1) scheduleAi();
       return;
     }
 
-    state.streak = 0;
+    if (state.player === 0 || !isVersus()) state.streak = 0;
     state.locked = true;
     sfx.miss();
-    [a, b].forEach((c) => { state.misses[c.id] = (state.misses[c.id] || 0) + 1; cardEl(c.key).classList.add('is-miss'); });
+    [a, b].forEach((c) => {
+      state.misses[c.id] = (state.misses[c.id] || 0) + 1;
+      cardEl(c.key).classList.add('is-miss');
+    });
+    if (isTermDeck() && !isVersus()) {
+      weak[weakKey(a.id)] = lifetimeMisses(a.id) + 1;
+      save(KEYS.weak, weak);
+    }
     updateStats();
 
     setTimeout(() => {
@@ -503,12 +658,64 @@
       setCardView(a); setCardView(b);
       state.flipped = [];
       state.locked = false;
-      if (isVersus() && !state.finished) { state.player = 1 - state.player; renderPlayers(); }
+      if (isVersus() && !state.finished) {
+        state.player = 1 - state.player;
+        renderPlayers();
+        if (isComputer() && state.player === 1) scheduleAi();
+      }
     }, MISMATCH_DELAY);
   }
 
+  // ---------- computer opponent ----------
+
+  function scheduleAi() {
+    clearTimeout(state.aiTimer);
+    if (state.paused || state.finished) return;
+    state.aiTimer = setTimeout(aiTurn, AI_STEP);
+  }
+
+  function aiTurn() {
+    if (state.finished || state.paused || state.player !== 1 || state.flipped.length) return;
+    const hidden = state.cards.filter((c) => !c.matched && !c.flipped);
+    if (hidden.length < 2) return;
+
+    // A remembered pair? Take it.
+    const byId = new Map();
+    for (const [key, id] of state.aiMemory) {
+      const c = state.cards[key];
+      if (c.matched || c.flipped) continue;
+      if (!byId.has(id)) byId.set(id, []);
+      byId.get(id).push(c);
+    }
+    const known = [...byId.values()].find((cs) => cs.length >= 2);
+    if (known) { aiFlipPair(known[0], known[1]); return; }
+
+    // Otherwise flip an unknown card, then its partner if it is remembered.
+    const unknown = hidden.filter((c) => !state.aiMemory.has(c.key));
+    const first = (unknown.length ? unknown : hidden)[Math.floor(Math.random() * (unknown.length ? unknown.length : hidden.length))];
+    reveal(first);
+    state.aiTimer = setTimeout(() => {
+      if (state.finished || state.paused) return;
+      const rest = state.cards.filter((c) => !c.matched && !c.flipped);
+      const partnerKey = [...state.aiMemory].find(([k, id]) => id === first.id && k !== first.key)?.[0];
+      const partner = partnerKey !== undefined ? state.cards[partnerKey] : null;
+      const second = partner && !partner.matched && !partner.flipped
+        ? partner
+        : rest[Math.floor(Math.random() * rest.length)];
+      if (second) reveal(second);
+    }, AI_STEP);
+  }
+
+  function aiFlipPair(a, b) {
+    reveal(a);
+    state.aiTimer = setTimeout(() => { if (!state.finished && !state.paused) reveal(b); }, AI_STEP);
+  }
+
+  // ---------- hints / stats ----------
+
   function hint() {
-    if (state.locked || state.finished || state.hintsUsed >= HINTS_PER_GAME || state.flipped.length) return;
+    if (state.locked || state.finished || state.paused || state.hintsUsed >= HINTS_PER_GAME || state.flipped.length) return;
+    if (isComputer() && state.player === 1) return;
     const hidden = state.cards.filter((c) => !c.matched && !c.flipped);
     if (hidden.length < 2) return;
     const first = hidden[Math.floor(Math.random() * hidden.length)];
@@ -518,13 +725,13 @@
     state.hintsUsed++;
     state.moves += HINT_PENALTY;
     state.streak = 0;
-    if (!state.started) { state.started = true; stats.played++; save(KEYS.stats, stats); }
+    beginIfNeeded();
     startTimer();
     sfx.hint();
     updateStats();
 
     state.locked = true;
-    [first, partner].forEach((c) => { c.flipped = true; setCardView(c); cardEl(c.key).classList.add('is-hint'); });
+    [first, partner].forEach((c) => { c.flipped = true; setCardView(c); cardEl(c.key).classList.add('is-hint'); aiObserve(c); });
     setTimeout(() => {
       [first, partner].forEach((c) => { c.flipped = false; setCardView(c); cardEl(c.key).classList.remove('is-hint'); });
       state.locked = false;
@@ -533,7 +740,7 @@
 
   function renderScore() {
     if (isVersus()) return;
-    el.score.textContent = state.started ? computeScore(state.moves, state.elapsed) : level().pairs * 1000;
+    el.score.textContent = state.started ? computeScore(state.moves, state.elapsed) : pairsForGame() * 1000;
   }
 
   function updateStats() {
@@ -543,16 +750,18 @@
     const left = HINTS_PER_GAME - state.hintsUsed;
     el.hint.textContent = `Hint (${left})`;
     el.hint.disabled = left <= 0 || state.finished;
+    el.pause.disabled = !state.started || state.finished;
     renderScore();
   }
 
   function renderPlayers() {
     if (!isVersus()) return;
-    el.players.innerHTML = PLAYERS.map((p, i) => `
+    const ps = [PLAYERS[0], opponent()];
+    el.players.innerHTML = ps.map((p, i) => `
       <div class="player ${state.player === i && !state.finished ? 'is-turn' : ''} player--${i}">
         <span class="player-name">${p.emoji} ${p.name}</span>
         <span class="player-pairs">${state.playerPairs[i]}</span>
-        <span class="player-turn">${state.player === i && !state.finished ? 'Your turn' : ''}</span>
+        <span class="player-turn">${state.player === i && !state.finished ? (i === 1 && isComputer() ? 'Thinking…' : 'Your turn') : ''}</span>
       </div>`).join('');
   }
 
@@ -571,14 +780,14 @@
 
   function renderReview() {
     const missed = Object.entries(state.misses)
-      .filter(([, n]) => n >= 1)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
     el.review.hidden = !isTermDeck() || !missed.length;
     if (el.review.hidden) return;
     el.reviewList.innerHTML = missed.map(([id, n]) => {
       const c = state.cards.find((x) => String(x.id) === id);
-      return `<li><strong>${escapeHtml(c.term)}</strong> — ${escapeHtml(c.def)} <small>(missed ×${n})</small></li>`;
+      const life = lifetimeMisses(c.id);
+      return `<li><strong>${escapeHtml(c.term)}</strong> — ${escapeHtml(c.def)} <small>(missed ×${n}${life > n ? `, ${life} all time` : ''})</small></li>`;
     }).join('');
   }
 
@@ -592,26 +801,23 @@
     if (stats.dailyStreak >= 3) unlock('daily3');
   }
 
-  function checkAchievements(score) {
+  function checkAchievements() {
     unlock('first');
     const hardPlus = prefs.level === 'hard' || prefs.level === 'expert';
-    if (state.moves === level().pairs) unlock('perfect');
+    if (state.moves === pairsForGame()) unlock('perfect');
     if (hardPlus && state.hintsUsed === 0) unlock('nohint');
     if (prefs.level !== 'easy' && state.elapsed < 45000) unlock('speedy');
     if (prefs.mode === 'terms' && hardPlus) unlock('scholar');
     if (prefs.mode === 'maxims') unlock('classic');
+    if (prefs.mode === 'custom') unlock('author');
     if (isTrial()) unlock('clock');
     if (prefs.level === 'expert') unlock('expert');
-    void score;
-  }
-
-  function openModal() {
-    el.overlay.hidden = false;
   }
 
   function win() {
     if (state.finished) return;
     stopTimer();
+    clearTimeout(state.aiTimer);
     state.finished = true;
     stats.won++;
     save(KEYS.stats, stats);
@@ -619,7 +825,6 @@
     updateStats();
     renderPlayers();
     renderReview();
-    sfx.win();
     confetti();
     recordDaily();
 
@@ -627,20 +832,26 @@
     el.submitForm.hidden = true;
     el.submitMsg.textContent = '';
     el.winRecord.hidden = true;
+    el.winCompare.hidden = true;
 
     if (isVersus()) {
       const [p0, p1] = state.playerPairs;
       const tie = p0 === p1;
-      const w = p0 > p1 ? 0 : 1;
-      el.winTitle.textContent = tie ? 'Hung jury!' : `${PLAYERS[w].emoji} ${PLAYERS[w].name} wins!`;
-      el.winText.textContent = `${PLAYERS[0].name} ${p0} · ${PLAYERS[1].name} ${p1} · ${state.moves} moves · ${formatTime(state.elapsed)}`;
+      const you = p0 > p1;
+      const other = opponent();
+      sfx[isComputer() && !you && !tie ? 'lose' : 'win']();
+      el.modalEmoji.textContent = tie ? '🤝' : (isComputer() && !you ? '🤖' : '🏆');
+      el.winTitle.textContent = tie ? 'Hung jury!' : `${you ? PLAYERS[0].emoji + ' ' + PLAYERS[0].name : other.emoji + ' ' + other.name} wins!`;
+      el.winText.textContent = `${PLAYERS[0].name} ${p0} · ${other.name} ${p1} · ${state.moves} moves · ${formatTime(state.elapsed)}`;
       unlock('first');
-      if (!tie) unlock('versus');
-      openModal();
+      if (!tie && (you || !isComputer())) unlock('versus');
+      if (isComputer() && you && (prefs.level === 'hard' || prefs.level === 'expert')) unlock('bot');
+      el.overlay.hidden = false;
       el.playAgain.focus();
       return;
     }
 
+    sfx.win();
     const score = computeScore(state.moves, state.elapsed);
     const best = load(KEYS.best, {});
     const prev = best[bestKey()];
@@ -654,17 +865,21 @@
     el.winTitle.textContent = state.daily ? `Daily Case #${dailyNumber()} closed!` : (isTrial() ? 'Verdict in time!' : 'Case closed!');
     el.winText.textContent = `${score} points · ${state.moves} moves · ${formatTime(state.elapsed)}`;
     el.winRecord.hidden = !isRecord;
-    el.submitForm.hidden = false;
-    el.submitBtn.disabled = false;
-    el.nameInput.value = prefs.name;
-    openModal();
-    (prefs.name ? el.submitBtn : el.nameInput).focus();
-    checkAchievements(score);
+    if (isOnline()) {
+      el.submitForm.hidden = false;
+      el.submitBtn.disabled = false;
+      el.nameInput.value = prefs.name;
+      loadSummary(state.moves);
+    }
+    el.overlay.hidden = false;
+    (isOnline() ? (prefs.name ? el.submitBtn : el.nameInput) : el.playAgain).focus();
+    checkAchievements();
   }
 
   function lose() {
     if (state.finished) return;
     stopTimer();
+    clearTimeout(state.aiTimer);
     state.finished = true;
     state.locked = true;
     updateStats();
@@ -674,13 +889,13 @@
 
     el.modalEmoji.textContent = '⏰';
     el.winTitle.textContent = 'Mistrial!';
-    el.winText.textContent = `Time ran out with ${state.matched} of ${level().pairs} pairs found in ${state.moves} moves.`;
+    el.winText.textContent = `Time ran out with ${state.matched} of ${pairsForGame()} pairs found in ${state.moves} moves.`;
     el.winRecord.hidden = true;
+    el.winCompare.hidden = true;
     el.submitForm.hidden = true;
     el.submitMsg.textContent = '';
-    el.review.hidden = true;
     renderReview();
-    openModal();
+    el.overlay.hidden = false;
     el.playAgain.focus();
   }
 
@@ -702,10 +917,10 @@
     setTimeout(() => { el.confetti.innerHTML = ''; }, 4500);
   }
 
-  // ---------- leaderboard ----------
+  // ---------- leaderboard & summary ----------
 
-  function lbParams() {
-    const p = new URLSearchParams({ level: prefs.level, mode: prefs.mode });
+  function lbParams(extra = {}) {
+    const p = new URLSearchParams({ level: prefs.level, mode: prefs.mode, ...extra });
     if (state.daily) p.set('daily', dailyDate());
     return p;
   }
@@ -720,7 +935,7 @@
       const { scores } = await res.json();
       if (!scores.length) { el.lbEmpty.textContent = 'No results filed yet. Close a case and be the first.'; el.lbEmpty.hidden = false; return; }
       el.lbList.innerHTML = scores.map((s, i) => `
-        <li>
+        <li class="${s.name === prefs.name ? 'is-you' : ''}">
           <span class="lb-rank">${i + 1}</span>
           <span class="lb-name">${escapeHtml(s.name)}</span>
           <span class="lb-score">${s.score}</span>
@@ -730,6 +945,24 @@
       el.lbEmpty.textContent = 'Leaderboard unavailable right now.';
       el.lbEmpty.hidden = false;
     }
+  }
+
+  async function loadSummary(moves = null) {
+    try {
+      const res = await fetch(`/api/scores/summary?${lbParams(moves ? { moves } : {})}`, { headers: { Accept: 'application/json' } });
+      if (!res.ok) return;
+      const s = await res.json();
+      if (!s.players) return;
+      const who = state.daily ? 'today' : 'on this board';
+      const line = `${s.players} lawyer${s.players === 1 ? '' : 's'} ${who} · avg ${s.avg_moves} moves · avg ${formatTime(s.avg_time_ms)}`;
+      if (moves === null) {
+        el.summary.textContent = line;
+        el.summary.hidden = false;
+      } else if (s.beat_percent !== null) {
+        el.winCompare.textContent = `You used fewer moves than ${s.beat_percent}% of ${s.players} lawyer${s.players === 1 ? '' : 's'} ${who}.`;
+        el.winCompare.hidden = false;
+      }
+    } catch { /* offline */ }
   }
 
   async function submitScore(e) {
@@ -756,6 +989,7 @@
       el.submitMsg.textContent = `Filed! You rank #${data.rank} on this board.`;
       el.submitForm.hidden = true;
       loadLeaderboard();
+      loadSummary();
     } catch (err) {
       el.submitMsg.textContent = err.message;
       el.submitBtn.disabled = false;
@@ -768,7 +1002,7 @@
     let text;
     if (isVersus()) {
       const [p0, p1] = state.playerPairs;
-      text = `Legal Memory Versus\n🔵 Prosecution ${p0} · 🟠 Defence ${p1}\n${location.origin}`;
+      text = `Legal Memory Versus\n${PLAYERS[0].emoji} ${PLAYERS[0].name} ${p0} · ${opponent().emoji} ${opponent().name} ${p1}\n${location.origin}`;
     } else {
       const score = computeScore(state.moves, state.elapsed);
       const head = state.daily ? `Legal Memory Daily #${dailyNumber()}` : `Legal Memory (${DECK_NAMES[prefs.mode]}, ${prefs.level}${isTrial() ? ', trial' : ''})`;
@@ -793,7 +1027,7 @@
     const cards = [...el.board.querySelectorAll('.card')];
     const idx = cards.indexOf(document.activeElement);
     if (idx < 0) return;
-    const cols = level().cols;
+    const cols = Number(el.board.style.getPropertyValue('--cols')) || 4;
     const map = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols };
     if (!(e.key in map)) return;
     e.preventDefault();
@@ -803,13 +1037,18 @@
   el.reset.addEventListener('click', newGame);
   el.playAgain.addEventListener('click', newGame);
   el.hint.addEventListener('click', hint);
+  el.pause.addEventListener('click', () => setPaused(!state.paused));
+  el.resumeBtn.addEventListener('click', () => setPaused(false));
   el.submitForm.addEventListener('submit', submitScore);
   el.shareBtn.addEventListener('click', share);
+  el.customSave.addEventListener('click', saveCustomDeck);
+  el.customClear.addEventListener('click', clearCustomDeck);
 
   const onPref = (key, input) => () => { prefs[key] = input.value; save(KEYS.prefs, prefs); newGame(); };
   el.difficulty.addEventListener('change', onPref('level', el.difficulty));
   el.mode.addEventListener('change', onPref('mode', el.mode));
   el.rules.addEventListener('change', onPref('rules', el.rules));
+  el.focus.addEventListener('change', () => { prefs.focus = el.focus.checked; save(KEYS.prefs, prefs); newGame(); });
   el.daily.addEventListener('click', () => { state.daily = !state.daily; newGame(); });
 
   el.sound.addEventListener('click', () => { prefs.sound = !prefs.sound; save(KEYS.prefs, prefs); applySoundButton(); if (prefs.sound) sfx.flip(); });
@@ -820,14 +1059,19 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, select, textarea')) return;
-    if (e.key === 'Escape' && !el.overlay.hidden) newGame();
-    if (e.key.toLowerCase() === 'h') hint();
-    if (e.key.toLowerCase() === 'n') newGame();
+    if (e.key === 'Escape') {
+      if (!el.overlay.hidden) newGame();
+      else if (state.paused) setPaused(false);
+      return;
+    }
+    const k = e.key.toLowerCase();
+    if (k === 'h') hint();
+    if (k === 'n') newGame();
+    if (k === 'p') setPaused(!state.paused);
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { if (state.timerId) stopTimer(); }
-    else if (state.started && !state.finished) startTimer();
+    if (document.hidden && state.started && !state.finished && !state.paused) setPaused(true);
   });
 
   // ---------- offline / install ----------
@@ -838,6 +1082,7 @@
 
   // ---------- init ----------
 
+  renderCustomDeck();
   el.difficulty.value = prefs.level;
   el.mode.value = prefs.mode;
   el.rules.value = prefs.rules;
