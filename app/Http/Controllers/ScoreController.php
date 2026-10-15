@@ -13,7 +13,7 @@ class ScoreController extends Controller
     {
         $data = $request->validate([
             'level' => ['required', Rule::in(array_keys(Score::PAIRS))],
-            'mode' => ['required', Rule::in(['icons', 'terms'])],
+            'mode' => ['required', Rule::in(Score::MODES)],
             'daily' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
@@ -35,7 +35,7 @@ class ScoreController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'min:1', 'max:20', 'regex:/^[\pL\pN .\'_-]+$/u'],
             'level' => ['required', Rule::in(array_keys(Score::PAIRS))],
-            'mode' => ['required', Rule::in(['icons', 'terms'])],
+            'mode' => ['required', Rule::in(Score::MODES)],
             'daily' => ['nullable', 'date_format:Y-m-d'],
             'moves' => ['required', 'integer', 'min:1', 'max:999'],
             'time_ms' => ['required', 'integer', 'min:1', 'max:86400000'],

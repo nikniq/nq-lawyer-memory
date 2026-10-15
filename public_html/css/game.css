@@ -123,6 +123,25 @@ select:focus-visible, .btn:focus-visible, .card:focus-visible {
 .card.is-hint .card-face--front { box-shadow: 0 0 0 3px var(--accent-hover), 0 4px 10px rgba(0,0,0,.25); }
 .card.is-combo .card-face--front { box-shadow: 0 0 0 3px var(--accent-hover), 0 0 18px var(--accent-hover); }
 
+.board--dense .card-name { display: none; }
+.board--dense .card-icon { font-size: clamp(1.3rem, 4.5vw, 2.4rem); }
+.board--dense .card-term { font-size: clamp(.6rem, 1.6vw, .85rem); }
+.board--dense .card-def { font-size: clamp(.5rem, 1.3vw, .7rem); }
+.stat-value.is-urgent { color: var(--miss); animation: pulse .5s ease infinite alternate; }
+@keyframes pulse { to { transform: scale(1.12); } }
+
+.players { display: flex; gap: .75rem; margin: 0 0 .75rem; }
+.player {
+  flex: 1; display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem;
+  border-radius: var(--radius); background: rgba(128,128,128,.14); border: 2px solid transparent;
+}
+.player.is-turn { border-color: var(--accent); background: rgba(217,119,6,.15); }
+.player-name { font-weight: 700; }
+.player-pairs { font-weight: 700; font-size: 1.3rem; font-variant-numeric: tabular-nums; margin-left: auto; }
+.player-turn { font-size: .75rem; color: var(--accent-hover); text-transform: uppercase; letter-spacing: .06em; min-width: 4.5rem; text-align: right; }
+.card.is-p0 .card-face--front { box-shadow: 0 0 0 3px #2563eb, 0 4px 10px rgba(0,0,0,.25); }
+.card.is-p1 .card-face--front { box-shadow: 0 0 0 3px #ea580c, 0 4px 10px rgba(0,0,0,.25); }
+
 .card.is-matched { cursor: default; }
 .card.is-matched .card-face--front { box-shadow: 0 0 0 3px var(--match), 0 4px 10px rgba(0,0,0,.25); animation: pop .4s ease; }
 .card.is-matched { opacity: .8; transition: opacity .4s .5s; }
@@ -151,6 +170,32 @@ select:focus-visible, .btn:focus-visible, .card:focus-visible {
 .lb-score { font-weight: 700; font-variant-numeric: tabular-nums; }
 .lb-detail { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
 .lb-empty { color: var(--muted); margin: 0; }
+
+.achievements { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
+.achievements summary { cursor: pointer; color: var(--text-on-dark); }
+.ach-count { color: var(--accent-hover); font-weight: 700; margin-left: .25rem; }
+.ach-list { list-style: none; margin: .75rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .5rem; }
+.ach { display: flex; gap: .6rem; align-items: center; padding: .5rem .6rem; border-radius: 8px; background: rgba(128,128,128,.1); opacity: .55; }
+.ach.is-unlocked { opacity: 1; background: rgba(217,119,6,.15); }
+.ach-icon { font-size: 1.4rem; }
+.ach-body { display: flex; flex-direction: column; line-height: 1.2; }
+.ach-body strong { color: var(--text-on-dark); }
+.ach-body small { font-size: .75rem; }
+
+.review { text-align: left; margin: .5rem 0 .75rem; padding: .6rem .8rem; background: #fff7ed; border-radius: 8px; border-left: 4px solid var(--accent); }
+.review-title { margin: 0 0 .3rem; font-size: .9rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+.review-list { margin: 0; padding-left: 1.1rem; font-size: .9rem; }
+.review-list small { color: #64748b; }
+
+.toasts { position: fixed; top: 1rem; right: 1rem; z-index: 120; display: flex; flex-direction: column; gap: .5rem; max-width: min(22rem, calc(100vw - 2rem)); }
+.toast {
+  background: var(--card-front); color: var(--text); border-radius: 10px; padding: .7rem 1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: .15rem;
+  animation: rise .3s ease; transition: opacity .4s, transform .4s;
+}
+.toast--ach { border-left: 4px solid var(--accent); }
+.toast span { font-size: .85rem; color: #475569; }
+.toast.is-out { opacity: 0; transform: translateX(1rem); }
 
 .howto { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
 .howto summary { cursor: pointer; }
@@ -210,5 +255,5 @@ select:focus-visible, .btn:focus-visible, .card:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .card-inner, .btn, select, .card-face { transition: none; }
-  .card.is-matched .card-face--front, .card.is-miss .card-inner, .overlay, .modal, .confetti i { animation: none; }
+  .card.is-matched .card-face--front, .card.is-miss .card-inner, .overlay, .modal, .confetti i, .toast, .stat-value.is-urgent { animation: none; }
 }

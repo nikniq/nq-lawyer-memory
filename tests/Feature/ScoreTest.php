@@ -37,6 +37,13 @@ class ScoreTest extends TestCase
         $this->getJson('/api/scores?level=normal&mode=terms&daily=2026-10-15')->assertOk()->assertJsonCount(1, 'scores');
     }
 
+    public function test_expert_level_and_maxims_deck_are_accepted(): void
+    {
+        $this->postJson('/api/scores', ['name' => 'Dee', 'level' => 'expert', 'mode' => 'maxims', 'moves' => 20, 'time_ms' => 90000])
+            ->assertCreated()
+            ->assertJson(['score' => Score::compute('expert', 20, 90000)]);
+    }
+
     public function test_implausible_results_are_rejected(): void
     {
         $this->postJson('/api/scores', ['name' => 'Cheat', 'level' => 'hard', 'mode' => 'icons', 'moves' => 3, 'time_ms' => 30000])->assertStatus(422);

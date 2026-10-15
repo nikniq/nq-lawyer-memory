@@ -8,7 +8,9 @@ class Score extends Model
 {
     protected $fillable = ['name', 'level', 'mode', 'daily', 'moves', 'time_ms', 'score'];
 
-    public const PAIRS = ['easy' => 6, 'normal' => 8, 'hard' => 12];
+    public const PAIRS = ['easy' => 6, 'normal' => 8, 'hard' => 12, 'expert' => 16];
+
+    public const MODES = ['icons', 'terms', 'maxims'];
 
     /**
      * Mirror of the client-side formula so a submitted score can be checked.

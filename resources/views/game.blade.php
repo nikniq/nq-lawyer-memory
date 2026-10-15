@@ -7,7 +7,11 @@
   <title>{{ config('app.name') }}</title>
   <meta name="description" content="A legal-themed memory game. Match icons or legal terms to their definitions, beat the daily case, and climb the leaderboard.">
   <meta name="theme-color" content="#0f172a">
-  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=2">
+  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=3">
+  <link rel="manifest" href="{{ asset('manifest.json') }}">
+  <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ asset('icon.svg') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
 
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-34RWEG01MV"></script>
@@ -36,9 +40,9 @@
         <div class="stats" aria-live="polite">
           <div class="stat"><span class="stat-label">Pairs</span><span class="stat-value"><span id="pairsCount">0</span>/<span id="pairsTotal">8</span></span></div>
           <div class="stat"><span class="stat-label">Moves</span><span class="stat-value" id="movesCount">0</span></div>
-          <div class="stat"><span class="stat-label">Time</span><span class="stat-value" id="timer">0:00</span></div>
+          <div class="stat"><span class="stat-label" id="timerLabel">Time</span><span class="stat-value" id="timer">0:00</span></div>
           <div class="stat"><span class="stat-label">Streak</span><span class="stat-value" id="streakCount">0</span></div>
-          <div class="stat stat--score"><span class="stat-label">Score</span><span class="stat-value" id="scoreCount">8000</span></div>
+          <div class="stat stat--score" id="scoreStat"><span class="stat-label">Score</span><span class="stat-value" id="scoreCount">8000</span></div>
         </div>
         <div class="controls">
           <label class="select-wrap">
@@ -46,6 +50,15 @@
             <select id="mode" aria-label="Deck">
               <option value="icons">Icons</option>
               <option value="terms">Legal terms</option>
+              <option value="maxims">Latin maxims</option>
+            </select>
+          </label>
+          <label class="select-wrap">
+            <span class="sr-only">Rules</span>
+            <select id="rules" aria-label="Rules">
+              <option value="classic">Classic</option>
+              <option value="trial">Trial · beat the clock</option>
+              <option value="versus">Versus · 2 players</option>
             </select>
           </label>
           <label class="select-wrap">
@@ -54,6 +67,7 @@
               <option value="easy">Easy · 6 pairs</option>
               <option value="normal" selected>Normal · 8 pairs</option>
               <option value="hard">Hard · 12 pairs</option>
+              <option value="expert">Expert · 16 pairs</option>
             </select>
           </label>
           <button type="button" class="btn btn--ghost" id="dailyBtn" aria-pressed="false" title="Same board for everyone today">📅 Daily Case</button>
@@ -63,20 +77,28 @@
       </div>
 
       <p class="board-title" id="boardTitle"></p>
+      <div class="players" id="players" hidden aria-live="polite"></div>
       <div id="gameBoard" class="board" role="grid" aria-label="Memory card board"></div>
 
       <p class="best" id="bestLine" hidden>Your best here: <strong id="bestText"></strong></p>
       <p class="best stats-line" id="statsLine"></p>
 
-      <section class="leaderboard" aria-labelledby="lbTitle">
+      <section class="leaderboard" id="leaderboard" aria-labelledby="lbTitle">
         <h2 class="lb-title" id="lbTitle">Top lawyers</h2>
         <ol class="lb-list" id="lbList"></ol>
         <p class="lb-empty" id="lbEmpty" hidden>No results filed yet. Close a case and be the first.</p>
       </section>
 
+      <details class="achievements">
+        <summary>Achievements <span class="ach-count" id="achCount"></span></summary>
+        <ul class="ach-list" id="achList"></ul>
+      </details>
+
       <details class="howto">
-        <summary>How scoring works</summary>
+        <summary>How to play</summary>
         <ul>
+          <li><strong>Classic</strong> is the standard game. <strong>Trial</strong> gives you a time limit per level. <strong>Versus</strong> is two players on one screen: a match earns another go, and whoever holds more pairs wins.</li>
+          <li>Decks: Icons match like with like. Legal terms and Latin maxims match a term to its definition.</li>
           <li>Each pair is worth 1,000 points.</li>
           <li>Every move beyond the minimum costs 25 points; every 10 seconds costs 20.</li>
           <li>Hints reveal a pair for a second but add 2 moves. You get 3 per game.</li>
@@ -89,10 +111,11 @@
   </div>
 
   <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
 
   <div class="overlay" id="winOverlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="winTitle">
-      <div class="modal-emoji" aria-hidden="true">🎉</div>
+      <div class="modal-emoji" id="modalEmoji" aria-hidden="true">🎉</div>
       <h2 class="modal-title" id="winTitle">Case closed!</h2>
       <p class="modal-text" id="winText"></p>
       <p class="modal-record" id="winRecord" hidden>🏆 New personal best!</p>
@@ -104,6 +127,11 @@
       </form>
       <p class="submit-msg" id="submitMsg" aria-live="polite"></p>
 
+      <div class="review" id="review" hidden>
+        <h3 class="review-title">Terms to review</h3>
+        <ul class="review-list" id="reviewList"></ul>
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn btn--ghost" id="shareBtn">Share</button>
         <button type="button" class="btn" id="playAgainBtn">Play Again</button>
@@ -111,6 +139,6 @@
     </div>
   </div>
 
-  <script src="{{ asset('js/game.js') }}?v=2" defer></script>
+  <script src="{{ asset('js/game.js') }}?v=3" defer></script>
 </body>
 </html>
