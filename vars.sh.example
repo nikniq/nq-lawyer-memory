@@ -1,0 +1,25 @@
+#!/bin/bash
+# Settings for cx.sh (the LOCAL assistant). Copy to vars.sh and fill in:
+#
+#   cp vars.sh.example vars.sh
+#
+# vars.sh is gitignored — it names hosts and accounts.
+
+PROJECT="legal-memory.example.com"      # site name, used for ~/www/$PROJECT on the server
+REMOTE_USER="your-ssh-user"
+REMOTE_HOST="your-host.example.com"
+REMOTE_PORT="22"
+REMOTE="$REMOTE_USER@$REMOTE_HOST"
+
+# App root on the server, relative to ~. deploy.sh, .env and storage/ live here.
+REMOTE_APP="www/$PROJECT"
+
+# Public URL that the health check (option 30) hits.
+APP_URL="https://$PROJECT"
+
+# Kept as variables so you can add flags once (e.g. -i KEY).
+APP_SSH="ssh -p $REMOTE_PORT"
+APP_SCP="scp -P $REMOTE_PORT"
+
+# Where remote output is tee'd.
+LOG_OUTPUT="./log/remote.out"

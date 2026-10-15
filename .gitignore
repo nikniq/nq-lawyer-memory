@@ -25,3 +25,8 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# deployment helpers
+vars.sh
+/log
+.claude/settings.local.json
