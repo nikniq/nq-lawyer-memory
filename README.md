@@ -63,6 +63,7 @@ All routes live under `/api` and require the session CSRF token for POST.
 | GET | `/api/scores?level=&mode=&daily=` | Top 10 for a board. Cached 30 s. |
 | GET | `/api/scores/summary?level=&mode=&daily=&moves=` | Players, average moves and time, and the percent of players beaten by `moves`. |
 | POST | `/api/scores` | File a result: `name, level, mode, daily?, moves, time_ms`. Implausible results and offensive names are rejected. Limited to 6 per minute. |
+| POST | `/api/client-errors` | Uncaught browser errors, sent automatically by the game. Written to `storage/logs/client-*.log` (`./cx.sh 36`). Limited to 10 per minute. |
 
 The score is recomputed server-side from moves and time: 1,000 per pair, minus 25 per move beyond the minimum, minus 2 per second.
 
@@ -73,7 +74,7 @@ The server deploys by pulling from GitHub. Two scripts drive it:
 - `deploy.sh` runs **on the server**: pull, `composer install` if the lockfile moved, create the SQLite file if missing, migrate, optional seed, rebuild caches, then `ops:verify-deploy`.
 - `cx.sh` runs **locally** as a numbered menu over SSH: deploy, what's live, migrations, caches, logs, health, backups, maintenance mode. It refuses to deploy with unpushed commits. Copy `vars.sh.example` to `vars.sh` and fill in the host.
 
-The scheduler prunes daily-case scores older than 30 days. It needs one cron entry on the server:
+The scheduler backs up the database nightly (keeping 14 copies) and prunes daily-case scores older than 30 days. It needs one cron entry on the server:
 
 ```
 * * * * * cd ~/www/<site> && php artisan schedule:run >> /dev/null 2>&1
@@ -81,9 +82,11 @@ The scheduler prunes daily-case scores older than 30 days. It needs one cron ent
 
 Static assets are referenced with `?v=N`; bump the number in `game.blade.php` and `sw.js` when changing CSS or JS so browsers and the service worker pick up the new files.
 
+Dependabot opens weekly pull requests for Composer and npm updates, and monthly ones for the CI actions. CI runs on each, so a green check means the update is safe to merge.
+
 ## Production checklist
 
 - `APP_ENV=production`, `APP_DEBUG=false` (deploy.sh warns if not).
 - `APP_KEY` set.
 - `storage/` writable; `database/database.sqlite` exists.
-- Cron entry above for pruning.
+- Cron entry above, for the nightly backup and pruning.

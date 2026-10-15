@@ -26,7 +26,11 @@ class ScoreController extends Controller
             ->orderBy('moves')
             ->orderBy('time_ms')
             ->limit(10)
-            ->get(['name', 'moves', 'time_ms', 'score', 'created_at']));
+            ->get(['name', 'moves', 'time_ms', 'score', 'created_at'])
+            // Plain arrays: the cache refuses to unserialize objects
+            // (cache.serializable_classes = false), so a cached Collection
+            // would come back as __PHP_Incomplete_Class.
+            ->toArray());
 
         return response()->json(['scores' => $scores]);
     }

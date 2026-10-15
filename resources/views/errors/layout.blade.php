@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>@yield('title') · {{ config('app.name') }}</title>
   <meta name="robots" content="noindex">
-  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=5">
+  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=7">
   <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
 </head>
 <body>

@@ -121,6 +121,7 @@ if [ -z "$SELECTION" ]; then
   echo "33 : ARTISAN: run a command on the server"
   echo "34 : ENV: key settings on the server (no secrets)"
   echo "35 : DISK: usage of the app directory"
+  echo "36 : LOGS: browser errors reported by visitors"
   echo ----------------------------------------------
   echo "DATA"
   echo "40 : SEED: run one seeder class (no pull, no migrate)"
@@ -203,6 +204,8 @@ case "$SELECTION" in
       remote_tty php artisan "$PARAM2" ;;
   34) banner "Server env"
       remote "grep -E '^(APP_ENV|APP_DEBUG|APP_URL|DB_CONNECTION|CACHE_STORE|QUEUE_CONNECTION|SESSION_DRIVER)=' .env" ;;
+  36) banner "Browser errors"
+      remote "tail -n 60 storage/logs/client-*.log 2>/dev/null || echo 'No browser errors reported.'" ;;
   35) banner "Disk"
       remote "du -sh . storage vendor public_html 2>/dev/null" ;;
 

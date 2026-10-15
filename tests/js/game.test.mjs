@@ -311,3 +311,19 @@ test('the game still works when analytics is blocked', () => {
   assert.deepEqual(g.errors, []);
   assert.equal(g.text('movesCount'), '1');
 });
+
+test('uncaught errors from the game are reported once, with game context', async () => {
+  const g = boot({ prefs: { mode: 'maxims', level: 'hard' } });
+  const fire = (message, filename) => g.window.dispatchEvent(new g.window.ErrorEvent('error', { message, filename, lineno: 12, colno: 3 }));
+  fire('Boom', 'https://example.test/js/game.js?v=7');
+  fire('Boom', 'https://example.test/js/game.js?v=7');            // duplicate, ignored
+  fire('From an extension', 'chrome-extension://abc/content.js'); // foreign, ignored
+  await g.flush();
+  const reports = g.requests.filter((r) => r.url === '/api/client-errors');
+  assert.equal(reports.length, 1);
+  const body = JSON.parse(reports[0].init.body);
+  assert.equal(body.message, 'Boom');
+  assert.equal(body.line, 12);
+  assert.deepEqual({ deck: body.state.deck, level: body.state.level }, { deck: 'maxims', level: 'hard' });
+  assert.equal(reports[0].init.headers['X-CSRF-TOKEN'], 'test-token');
+});

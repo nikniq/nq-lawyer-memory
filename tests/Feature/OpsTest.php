@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Score;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class OpsTest extends TestCase
@@ -55,5 +56,32 @@ class OpsTest extends TestCase
             $this->postJson('/api/scores', $payload)->assertCreated();
         }
         $this->postJson('/api/scores', $payload)->assertStatus(429);
+    }
+
+    public function test_client_errors_are_logged_to_their_own_channel(): void
+    {
+        $channel = \Mockery::mock();
+        $channel->shouldReceive('warning')->once()->withArgs(fn ($msg, $ctx) => $msg === 'TypeError: x is undefined'
+            && $ctx['line'] === 42 && $ctx['state']['deck'] === 'terms');
+        Log::shouldReceive('channel')->with('client')->once()->andReturn($channel);
+
+        $this->postJson('/api/client-errors', [
+            'message' => 'TypeError: x is undefined',
+            'source' => 'https://example.test/js/game.js?v=7',
+            'line' => 42, 'column' => 7, 'kind' => 'error',
+            'state' => ['deck' => 'terms', 'level' => 'hard', 'rules' => 'classic', 'daily' => 0, 'moves' => 3, 'pairs' => 1],
+        ])->assertNoContent();
+    }
+
+    public function test_client_error_reports_are_validated_and_rate_limited(): void
+    {
+        $this->postJson('/api/client-errors', [])->assertUnprocessable();
+        $this->postJson('/api/client-errors', ['message' => 'x', 'state' => ['evil' => 1]])->assertUnprocessable();
+
+        Log::shouldReceive('channel')->andReturn(\Mockery::mock(['warning' => null]));
+        for ($i = 0; $i < 8; $i++) {
+            $this->postJson('/api/client-errors', ['message' => "e{$i}"])->assertNoContent();
+        }
+        $this->postJson('/api/client-errors', ['message' => 'one too many'])->assertStatus(429);
     }
 }

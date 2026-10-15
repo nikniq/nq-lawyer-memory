@@ -32,7 +32,7 @@
     "offers": { "@@type": "Offer", "price": "0", "priceCurrency": "USD" }
   }
   </script>
-  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=6">
+  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=7">
   <link rel="manifest" href="{{ asset('manifest.json') }}">
   <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{{ asset('icon.svg') }}">
@@ -83,18 +83,18 @@
             <span class="sr-only">Rules</span>
             <select id="rules" aria-label="Rules">
               <option value="classic">Classic</option>
-              <option value="trial">Trial · beat the clock</option>
-              <option value="versus">Versus · 2 players</option>
-              <option value="computer">Versus · Counsel Bot</option>
+              <option value="trial">Trial · timed</option>
+              <option value="versus">Versus · 2P</option>
+              <option value="computer">Versus · Bot</option>
             </select>
           </label>
           <label class="select-wrap">
-            <span class="sr-only">Difficulty</span>
-            <select id="difficulty" aria-label="Difficulty">
-              <option value="easy">Easy · 6 pairs</option>
-              <option value="normal" selected>Normal · 8 pairs</option>
-              <option value="hard">Hard · 12 pairs</option>
-              <option value="expert">Expert · 16 pairs</option>
+            <span class="sr-only">Difficulty (number of pairs)</span>
+            <select id="difficulty" aria-label="Difficulty (number of pairs)">
+              <option value="easy">Easy · 6</option>
+              <option value="normal" selected>Normal · 8</option>
+              <option value="hard">Hard · 12</option>
+              <option value="expert">Expert · 16</option>
             </select>
           </label>
           <button type="button" class="btn btn--ghost" id="dailyBtn" aria-pressed="false" title="Same board for everyone today">📅 Daily Case</button>
@@ -191,6 +191,6 @@
     </div>
   </div>
 
-  <script src="{{ asset('js/game.js') }}?v=6" defer></script>
+  <script src="{{ asset('js/game.js') }}?v=7" defer></script>
 </body>
 </html>

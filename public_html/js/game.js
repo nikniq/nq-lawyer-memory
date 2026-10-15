@@ -1,6 +1,49 @@
 (() => {
   'use strict';
 
+  // ---------- error reporting ----------
+  // Uncaught errors from this script are sent to the server log, at most a
+  // few per page load. Errors from browser extensions and other origins are
+  // ignored, since they are not ours to fix.
+  const reported = new Set();
+  let reportsLeft = 5;
+  let errorContext = () => ({});
+  function reportError(payload) {
+    try {
+      const key = `${payload.message}|${payload.line}`;
+      if (reportsLeft <= 0 || reported.has(key)) return;
+      reported.add(key);
+      reportsLeft--;
+      const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      fetch('/api/client-errors', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': token },
+        body: JSON.stringify({ ...payload, state: errorContext() }),
+      }).catch(() => {});
+    } catch { /* never let reporting break the game */ }
+  }
+  window.addEventListener('error', (e) => {
+    const src = e.filename || '';
+    if (src && !src.startsWith(location.origin)) return;
+    reportError({
+      kind: 'error',
+      message: String(e.message || e.error || 'Unknown error').slice(0, 500),
+      source: src.slice(0, 300) || null,
+      line: e.lineno || null,
+      column: e.colno || null,
+      stack: e.error?.stack ? String(e.error.stack).slice(0, 3000) : null,
+    });
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason;
+    reportError({
+      kind: 'rejection',
+      message: String(r?.message || r || 'Unhandled rejection').slice(0, 500),
+      stack: r?.stack ? String(r.stack).slice(0, 3000) : null,
+    });
+  });
+
   // ---------- decks ----------
 
   const ICONS = [
@@ -200,6 +243,11 @@
     aiMemory: new Map(),   // card key -> pair id the computer remembers
     aiTimer: null,
   };
+
+  errorContext = () => ({
+    deck: prefs.mode, level: prefs.level, rules: prefs.rules,
+    daily: state.daily ? 1 : 0, moves: state.moves, pairs: state.matched,
+  });
 
   const level = () => LEVELS[prefs.level];
   const isVersus = () => prefs.rules === 'versus' || prefs.rules === 'computer';

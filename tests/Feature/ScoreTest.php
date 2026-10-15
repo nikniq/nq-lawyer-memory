@@ -76,6 +76,28 @@ class ScoreTest extends TestCase
         $this->getJson('/api/scores?level=easy&mode=icons')->assertOk()->assertJsonCount(1, 'scores');
     }
 
+    public function test_leaderboard_survives_a_serializing_cache_store(): void
+    {
+        // Production uses the database cache store, which serializes values.
+        // The array store used by the test suite does not, which once hid a
+        // bug where cached hits came back as __PHP_Incomplete_Class.
+        config(['cache.default' => 'database']);
+        $this->postJson('/api/scores', ['name' => 'Ada', 'level' => 'hard', 'mode' => 'terms', 'moves' => 15, 'time_ms' => 50000])->assertCreated();
+
+        foreach (['miss', 'hit'] as $pass) {
+            $this->getJson('/api/scores?level=hard&mode=terms')
+                ->assertOk()
+                ->assertJsonCount(1, 'scores')
+                ->assertJsonPath('scores.0.name', 'Ada');
+        }
+
+        foreach (['miss', 'hit'] as $pass) {
+            $this->getJson('/api/scores/summary?level=hard&mode=terms&moves=20')
+                ->assertOk()
+                ->assertJson(['players' => 1, 'avg_moves' => 15]);
+        }
+    }
+
     public function test_implausible_results_are_rejected(): void
     {
         $this->postJson('/api/scores', ['name' => 'Cheat', 'level' => 'hard', 'mode' => 'icons', 'moves' => 3, 'time_ms' => 30000])->assertStatus(422);

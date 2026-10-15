@@ -73,6 +73,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Uncaught JavaScript errors reported by visitors' browsers.
+        'client' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/client.log'),
+            'level' => 'debug',
+            'max_files' => 14,
+            'replace_placeholders' => true,
+        ],
+
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),
