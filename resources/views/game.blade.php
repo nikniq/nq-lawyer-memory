@@ -32,10 +32,11 @@
     "offers": { "@@type": "Offer", "price": "0", "priceCurrency": "USD" }
   }
   </script>
-  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=7">
+  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=8">
   <link rel="manifest" href="{{ asset('manifest.json') }}">
   <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{{ asset('icon.svg') }}">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
   <!-- Google tag (gtag.js) -->
@@ -111,7 +112,7 @@
       </label>
       <div class="players" id="players" hidden aria-live="polite"></div>
       <div class="board-wrap">
-        <div id="gameBoard" class="board" role="grid" aria-label="Memory card board"></div>
+        <div id="gameBoard" class="board" role="group" aria-label="Cards. Use the arrow keys to move between cards and Enter to turn one over."></div>
         <div class="paused" id="pausedOverlay" hidden>
           <p>Court is in recess</p>
           <button type="button" class="btn" id="resumeBtn">Resume</button>
@@ -191,6 +192,6 @@
     </div>
   </div>
 
-  <script src="{{ asset('js/game.js') }}?v=7" defer></script>
+  <script src="{{ asset('js/game.js') }}?v=8" defer></script>
 </body>
 </html>

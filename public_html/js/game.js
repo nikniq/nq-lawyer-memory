@@ -538,7 +538,6 @@
     lastTickSecond = -1;
     if (state.daily && prefs.mode === 'custom') state.daily = false;
     const pairs = pairsForGame();
-    const cols = pairs >= 16 ? 8 : pairs >= 12 ? 6 : 4;
     const rand = state.daily ? mulberry32(hashString(`${dailyDate()}|${prefs.mode}|${prefs.level}`)) : Math.random;
 
     state.cards = shuffle(buildDeck(rand), rand).map((c, i) => ({ ...c, key: i, flipped: false, matched: false }));
@@ -548,7 +547,7 @@
       player: 0, playerPairs: [0, 0], misses: {}, aiMemory: new Map(), aiTimer: null,
     });
 
-    el.board.style.setProperty('--cols', cols);
+    applyColumns();
     el.board.classList.toggle('board--terms', isTermDeck());
     el.board.classList.toggle('board--dense', pairs >= 12);
     el.board.classList.remove('is-paused');
@@ -609,12 +608,10 @@
       btn.type = 'button';
       btn.className = 'card';
       btn.dataset.key = card.key;
-      btn.setAttribute('role', 'gridcell');
-      btn.setAttribute('aria-label', 'Face-down card');
-      btn.setAttribute('aria-pressed', 'false');
+      btn.setAttribute('aria-label', `Card ${card.key + 1}, face down`);
       btn.innerHTML = `
         <div class="card-inner">
-          <div class="card-face card-face--back" aria-hidden="true">⚖️</div>
+          <div class="card-face card-face--back" aria-hidden="true"></div>
           <div class="card-face card-face--front card-face--${card.face}" aria-hidden="true">${cardFaceHtml(card)}</div>
         </div>`;
       frag.appendChild(btn);
@@ -624,6 +621,16 @@
 
   const cardEl = (key) => el.board.querySelector(`[data-key="${key}"]`);
 
+  // Wide boards get 6 or 8 columns on a desktop, but on a phone that shrinks
+  // definitions to unreadable sizes, so narrow screens stay at 4 columns.
+  const narrow = window.matchMedia('(max-width: 600px)');
+  function applyColumns() {
+    const pairs = pairsForGame();
+    const cols = pairs >= 16 ? 8 : pairs >= 12 ? 6 : 4;
+    el.board.style.setProperty('--cols', narrow.matches ? Math.min(cols, 4) : cols);
+  }
+  narrow.addEventListener?.('change', applyColumns);
+
   function setCardView(card) {
     const node = cardEl(card.key);
     node.classList.toggle('is-flipped', card.flipped);
@@ -631,8 +638,7 @@
     node.classList.remove('is-p0', 'is-p1');
     if (card.matched && isVersus()) node.classList.add(`is-p${card.owner}`);
     const faceUp = card.flipped || card.matched;
-    node.setAttribute('aria-pressed', String(faceUp));
-    node.setAttribute('aria-label', faceUp ? `${card.label}${card.matched ? ', matched' : ''}` : 'Face-down card');
+    node.setAttribute('aria-label', faceUp ? `${card.label}${card.matched ? ', matched' : ''}` : `Card ${card.key + 1}, face down`);
     node.disabled = card.matched;
   }
 
@@ -1032,7 +1038,7 @@
       if (moves === null) {
         el.summary.textContent = line;
         el.summary.hidden = false;
-      } else if (s.beat_percent !== null) {
+      } else if (s.beat_percent) {
         el.winCompare.textContent = `You used fewer moves than ${s.beat_percent}% of ${s.players} lawyer${s.players === 1 ? '' : 's'} ${who}.`;
         el.winCompare.hidden = false;
       }
@@ -1059,6 +1065,7 @@
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 429) throw new Error('Too many results filed from here in the last minute. Wait a moment and try again.');
       if (!res.ok) throw new Error(data.message || 'Could not file your result.');
       el.submitMsg.textContent = `Filed! You rank #${data.rank} on this board.`;
       el.submitForm.hidden = true;

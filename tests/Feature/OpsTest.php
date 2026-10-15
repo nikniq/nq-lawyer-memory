@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Score;
+use App\Support\ClientIp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -83,5 +85,44 @@ class OpsTest extends TestCase
             $this->postJson('/api/client-errors', ['message' => "e{$i}"])->assertNoContent();
         }
         $this->postJson('/api/client-errors', ['message' => 'one too many'])->assertStatus(429);
+    }
+
+    public function test_leaderboard_reads_do_not_use_up_the_filing_allowance(): void
+    {
+        // Each New Game makes two reads; a player starting several games in a
+        // minute must still be able to file a result.
+        for ($i = 0; $i < 20; $i++) {
+            $this->getJson('/api/scores?level=easy&mode=icons')->assertOk();
+        }
+        $this->postJson('/api/scores', ['name' => 'Busy', 'level' => 'easy', 'mode' => 'icons', 'moves' => 6, 'time_ms' => 10000])->assertCreated();
+    }
+
+    public function test_players_behind_the_proxy_get_their_own_rate_limit(): void
+    {
+        $payload = ['name' => 'P', 'level' => 'easy', 'mode' => 'icons', 'moves' => 6, 'time_ms' => 10000];
+        for ($i = 0; $i < 6; $i++) {
+            $this->withHeader('X-Real-IP', '203.0.113.7')->postJson('/api/scores', $payload)->assertCreated();
+        }
+        $this->withHeader('X-Real-IP', '203.0.113.7')->postJson('/api/scores', $payload)->assertStatus(429);
+        // A different visitor, same proxy: unaffected.
+        $this->withHeader('X-Real-IP', '198.51.100.9')->postJson('/api/scores', $payload)->assertCreated();
+    }
+
+    public function test_real_ip_header_is_ignored_from_a_public_address(): void
+    {
+        $request = Request::create('/', 'GET', server: ['REMOTE_ADDR' => '8.8.8.8', 'HTTP_X_REAL_IP' => '1.2.3.4']);
+        $this->assertSame('8.8.8.8', ClientIp::of($request));
+
+        $proxied = Request::create('/', 'GET', server: ['REMOTE_ADDR' => '127.0.0.1', 'HTTP_X_REAL_IP' => '1.2.3.4']);
+        $this->assertSame('1.2.3.4', ClientIp::of($proxied));
+    }
+
+    public function test_https_from_the_proxy_is_honoured_in_generated_urls(): void
+    {
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->withHeader('X-Forwarded-Proto', 'https')
+            ->get('/')
+            ->assertOk()
+            ->assertSee('<link rel="canonical" href="https://', false);
     }
 }

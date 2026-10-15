@@ -39,3 +39,41 @@ jobs:
       - run: npm ci
       - run: node --check public_html/js/game.js && node --check public_html/sw.js
       - run: npm test
+
+  browser:
+    name: Browser smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: sqlite3, pdo_sqlite
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci
+      - name: Prepare app
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+          php artisan migrate --force
+      - name: Start app
+        run: |
+          php artisan serve --port=8000 > serve.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/up && break; sleep 1; done
+      - name: Run smoke test
+        env:
+          SHOTS: shots
+        run: npm run e2e
+      - name: Keep screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: shots/
+          if-no-files-found: ignore

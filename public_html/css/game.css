@@ -7,7 +7,7 @@
   --text: #1e293b;
   --text-on-dark: #f8fafc;
   --muted: #94a3b8;
-  --accent: #d97706;
+  --accent: #b45309;      /* amber-700: 5:1 with white text, 4.8:1 as text on the light modal */
   --accent-hover: #f59e0b;
   --match: #16a34a;
   --miss: #dc2626;
@@ -26,6 +26,9 @@
 }
 
 * { box-sizing: border-box; }
+
+/* The hidden attribute must win over any display rule on the element. */
+[hidden] { display: none !important; }
 
 html, body { margin: 0; min-height: 100%; }
 
@@ -74,8 +77,8 @@ select, .btn {
   padding: .6rem 1rem; cursor: pointer; transition: transform .15s, filter .15s, background .15s;
 }
 select { background: var(--bg-accent); color: var(--text-on-dark); border: 1px solid rgba(255,255,255,.15); }
-.btn { background: var(--accent); color: var(--text-on-dark); }
-.btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.btn { background: var(--accent); color: #fff; }
+.btn:hover { background: #92400e; transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
 .btn--ghost { background: transparent; border: 1px solid rgba(128,128,128,.4); color: inherit; }
 .btn--ghost:hover { background: rgba(128,128,128,.15); }
@@ -115,12 +118,21 @@ select:focus-visible, .btn:focus-visible, .card:focus-visible {
   transition: background .15s;
 }
 .card-face--back { background: var(--card-back); color: var(--text-on-dark); font-size: 2em; }
-.card-face--front { background: var(--card-front); transform: rotateY(180deg); gap: .2em; padding: .25em; }
+/* Drawn with CSS so it is not read as part of the card's name. */
+.card-face--back::before { content: '⚖️'; }
+.card-face--front {
+  background: var(--card-front); transform: rotateY(180deg); gap: .2em; padding: .25em;
+  /* Fully hidden while face down, so its text is neither selectable nor read
+     as part of the card. Shown at once when turned up; on turning back it
+     stays visible until the card is edge-on, so the flip still looks right. */
+  visibility: hidden; transition: visibility 0s .25s;
+}
+.card.is-flipped .card-face--front, .card.is-matched .card-face--front { visibility: visible; transition: visibility 0s; }
 .card-icon { font-size: clamp(1.6rem, 6vw, 3rem); line-height: 1; }
 .card-name { font-size: clamp(.6rem, 1.8vw, .8rem); font-weight: 600; text-align: center; }
 
 .card-face--term, .card-face--def { padding: .4em; }
-.card-term { font-weight: 700; font-size: clamp(.7rem, 2.2vw, 1rem); text-align: center; line-height: 1.2; }
+.card-term { font-weight: 700; font-size: clamp(.7rem, 2.2vw, 1rem); text-align: center; line-height: 1.2; overflow-wrap: anywhere; hyphens: auto; }
 .card-def { font-size: clamp(.58rem, 1.7vw, .8rem); text-align: center; line-height: 1.25; font-style: italic; }
 .board--terms .card { aspect-ratio: 1 / 1; }
 .card.is-hint .card-face--front { box-shadow: 0 0 0 3px var(--accent-hover), 0 4px 10px rgba(0,0,0,.25); }

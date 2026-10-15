@@ -52,7 +52,14 @@ npm test                # JS: plays every game mode in jsdom
 ./vendor/bin/pint       # code style
 ```
 
-CI runs all three on every push and pull request (`.github/workflows/ci.yml`).
+A fourth check plays the game in real headless Chrome and fails on any accessibility violation (axe-core), console error, failed score filing or broken phone layout. It needs the app running locally, and it refuses non-local URLs because it files a score:
+
+```sh
+php artisan serve &
+npm run e2e                 # SHOTS=./shots npm run e2e saves screenshots too
+```
+
+CI runs all four on every push and pull request (`.github/workflows/ci.yml`); the browser job uploads its screenshots as a build artifact.
 
 ## API
 

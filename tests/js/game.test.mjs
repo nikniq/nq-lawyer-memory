@@ -15,13 +15,13 @@ const html = readFileSync(new URL('../../resources/views/game.blade.php', import
   .replace(/<script src="\/js\/game\.js[^"]*" defer><\/script>/, '');
 const script = readFileSync(new URL('../../public_html/js/game.js', import.meta.url), 'utf8');
 
-function boot({ prefs = {}, scores = [], fetchFail = false } = {}) {
+function boot({ prefs = {}, scores = [], fetchFail = false, narrow = false } = {}) {
   const dom = new JSDOM(html, { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only' });
   const { window } = dom;
   const requests = [];
 
   window.localStorage.setItem('legal-memory-prefs', JSON.stringify({ sound: false, ...prefs }));
-  window.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {} });
+  window.matchMedia = (q) => ({ matches: narrow && q.includes('max-width'), addListener() {}, removeListener() {}, addEventListener() {} });
   window.fetch = async (url, init = {}) => {
     requests.push({ url: String(url), init });
     if (fetchFail) throw new Error('offline');
@@ -124,7 +124,7 @@ test('mismatches flip back, cost a move and reset the streak', () => {
   assert.ok(a.classList.contains('is-flipped'));
   g.advance(1000);
   assert.ok(!a.classList.contains('is-flipped'));
-  assert.equal(a.getAttribute('aria-label'), 'Face-down card');
+  assert.match(a.getAttribute('aria-label'), /^Card \d+, face down$/);
 });
 
 test('hint reveals a pair briefly and adds two moves; three hints max', () => {
@@ -187,7 +187,7 @@ test('versus against Counsel Bot plays to completion and declares a result', asy
   const name = (c) => c.querySelector('.card-name').textContent;
   let guard = 400;
   while (Number(g.text('pairsCount')) < 8 && guard-- > 0) {
-    const hidden = g.cards().filter((c) => !c.disabled && c.getAttribute('aria-pressed') === 'false');
+    const hidden = g.cards().filter((c) => !c.disabled && !c.classList.contains('is-flipped'));
     const turn = g.text('players');
     if (/Your turn/.test(turn) && hidden.length >= 2) {
       const a = hidden[0];
@@ -326,4 +326,29 @@ test('uncaught errors from the game are reported once, with game context', async
   assert.equal(body.line, 12);
   assert.deepEqual({ deck: body.state.deck, level: body.state.level }, { deck: 'maxims', level: 'hard' });
   assert.equal(reports[0].init.headers['X-CSRF-TOKEN'], 'test-token');
+});
+
+test('phones cap wide boards at four columns', () => {
+  const wide = boot({ prefs: { level: 'expert', mode: 'maxims' } });
+  assert.equal(wide.doc.getElementById('gameBoard').style.getPropertyValue('--cols'), '8');
+  const phone = boot({ prefs: { level: 'expert', mode: 'maxims' }, narrow: true });
+  assert.equal(phone.doc.getElementById('gameBoard').style.getPropertyValue('--cols'), '4');
+  assert.equal(phone.cards().length, 32);
+});
+
+test('a rate-limited filing shows a plain-language message', async () => {
+  const g = boot({ prefs: { level: 'easy' } });
+  g.window.fetch = async (url, init = {}) => (init.method === 'POST'
+    ? { ok: false, status: 429, json: async () => ({ message: 'Too Many Attempts.' }) }
+    : { ok: true, status: 200, json: async () => ({ scores: [], players: 0 }) });
+  g.advance(2000);
+  const byName = new Map();
+  g.cards().forEach((c) => { const k = c.querySelector('.card-name').textContent; (byName.get(k) || byName.set(k, []).get(k)).push(c); });
+  for (const [a, b] of byName.values()) { a.click(); b.click(); g.advance(50); }
+  g.advance(1000);
+  g.doc.getElementById('nameInput').value = 'Tester';
+  g.doc.getElementById('submitForm').dispatchEvent(new g.window.Event('submit', { cancelable: true }));
+  await g.flush();
+  assert.match(g.text('submitMsg'), /Too many results filed from here/);
+  assert.equal(g.doc.getElementById('submitBtn').disabled, false, 'player can retry');
 });
