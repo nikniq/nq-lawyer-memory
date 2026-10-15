@@ -32,6 +32,18 @@ if [ ! -f public_html/build/manifest.json ]; then
     echo "⚠ public_html/build/manifest.json missing — run 'npm run build' and commit, or build here."
 fi
 
+# SQLite databases are gitignored, so a fresh checkout has no file and every
+# request 500s with "Database file at path [...] does not exist".
+if grep -qE '^DB_CONNECTION=sqlite' .env 2>/dev/null; then
+    DB_FILE=$(grep -E '^DB_DATABASE=' .env | cut -d= -f2- | tr -d '"' || true)
+    DB_FILE="${DB_FILE:-database/database.sqlite}"
+    if [ ! -f "$DB_FILE" ]; then
+        echo "→ create sqlite database $DB_FILE"
+        mkdir -p "$(dirname "$DB_FILE")"
+        touch "$DB_FILE"
+    fi
+fi
+
 echo "→ migrate"
 php artisan migrate --force
 
