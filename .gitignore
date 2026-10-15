@@ -30,3 +30,4 @@ Thumbs.db
 vars.sh
 /log
 .claude/settings.local.json
+/storage/backups

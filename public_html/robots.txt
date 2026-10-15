@@ -1,2 +1,4 @@
 User-agent: *
 Disallow:
+
+Sitemap: https://lawyermemory.nikniq.com/sitemap.xml

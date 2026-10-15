@@ -17,7 +17,22 @@
   <meta name="twitter:title" content="{{ config('app.name') }}">
   <meta name="twitter:description" content="A legal-themed memory game with a daily case and online leaderboard.">
   <meta name="twitter:image" content="{{ asset('og.png') }}">
-  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=5">
+  <script type="application/ld+json">
+  {
+    "@@context": "https://schema.org",
+    "@@type": "WebApplication",
+    "name": "{{ config('app.name') }}",
+    "url": "{{ url('/') }}",
+    "applicationCategory": "GameApplication",
+    "genre": "Memory game",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "isAccessibleForFree": true,
+    "description": "A legal-themed memory game. Match icons, legal terms and Latin maxims, beat the daily case, and climb the leaderboard.",
+    "offers": { "@@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=6">
   <link rel="manifest" href="{{ asset('manifest.json') }}">
   <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{{ asset('icon.svg') }}">
@@ -90,6 +105,7 @@
       </div>
 
       <p class="board-title" id="boardTitle"></p>
+      <p class="sr-only" id="announcer" aria-live="assertive" aria-atomic="true"></p>
       <label class="focus-wrap" id="focusWrap" hidden>
         <input type="checkbox" id="focusToggle"> Focus on terms I keep missing
       </label>
@@ -175,6 +191,6 @@
     </div>
   </div>
 
-  <script src="{{ asset('js/game.js') }}?v=5" defer></script>
+  <script src="{{ asset('js/game.js') }}?v=6" defer></script>
 </body>
 </html>

@@ -32,6 +32,8 @@ function boot({ prefs = {}, scores = [], fetchFail = false } = {}) {
     return json({}, 404);
   };
   window.navigator.clipboard = { writeText: async () => {} };
+  const events = [];
+  window.gtag = (kind, name, params) => { if (kind === 'event') events.push({ name, params }); };
 
   // Deterministic, controllable clock.
   let now = Date.now();
@@ -59,7 +61,7 @@ function boot({ prefs = {}, scores = [], fetchFail = false } = {}) {
 
   const doc = window.document;
   const api = {
-    window, doc, advance, requests, errors,
+    window, doc, advance, requests, errors, events,
     cards: () => [...doc.querySelectorAll('.card')],
     text: (id) => doc.getElementById(id).textContent.trim(),
     click: (id) => doc.getElementById(id).click(),
@@ -250,4 +252,62 @@ test('expert level deals 16 pairs on 8 columns', () => {
   const g = boot({ prefs: { level: 'expert', mode: 'maxims' } });
   assert.equal(g.cards().length, 32);
   assert.equal(g.doc.getElementById('gameBoard').style.getPropertyValue('--cols'), '8');
+});
+
+test('screen readers hear matches, misses and the result', () => {
+  const g = boot({ prefs: { level: 'easy' } });
+  g.advance(2000);
+  const name = (c) => c.querySelector('.card-name').textContent;
+  const [a, ...rest] = g.cards();
+  const other = rest.find((c) => name(c) !== name(a));
+  a.click(); other.click(); g.advance(50);
+  assert.match(g.text('announcer'), /^No match: .+ and .+\.$/);
+  g.advance(1000);
+
+  const twin = rest.find((c) => name(c) === name(a));
+  a.click(); twin.click(); g.advance(50);
+  assert.match(g.text('announcer'), new RegExp(`^Match: ${name(a)}\\. 1 of 6 pairs\\.$`));
+
+  const byName = new Map();
+  g.cards().filter((c) => !c.disabled).forEach((c) => { const k = name(c); (byName.get(k) || byName.set(k, []).get(k)).push(c); });
+  for (const [x, y] of byName.values()) { x.click(); y.click(); g.advance(50); }
+  g.advance(1000);
+  assert.match(g.text('announcer'), /^Case closed!/);
+});
+
+test('versus announces whose turn it is', () => {
+  const g = boot({ prefs: { rules: 'versus' } });
+  const name = (c) => c.querySelector('.card-name').textContent;
+  const [a, ...rest] = g.cards();
+  a.click(); rest.find((c) => name(c) !== name(a)).click();
+  g.advance(1000);
+  assert.equal(g.text('announcer'), 'Defence\'s turn.');
+});
+
+test('analytics events fire for start, win and filing', async () => {
+  const g = boot({ prefs: { level: 'easy', mode: 'icons' } });
+  g.advance(2000);
+  const byName = new Map();
+  g.cards().forEach((c) => { const k = c.querySelector('.card-name').textContent; (byName.get(k) || byName.set(k, []).get(k)).push(c); });
+  for (const [a, b] of byName.values()) { a.click(); b.click(); g.advance(50); }
+  g.advance(1000);
+  g.doc.getElementById('nameInput').value = 'Tester';
+  g.doc.getElementById('submitForm').dispatchEvent(new g.window.Event('submit', { cancelable: true }));
+  await g.flush();
+
+  const names = g.events.map((e) => e.name);
+  assert.equal(names.filter((n) => n === 'game_start').length, 1, 'one start per game');
+  assert.ok(names.includes('game_win'));
+  assert.ok(names.includes('score_filed'));
+  assert.ok(names.includes('achievement'));
+  const win = g.events.find((e) => e.name === 'game_win').params;
+  assert.deepEqual({ deck: win.deck, level: win.level, moves: win.moves }, { deck: 'icons', level: 'easy', moves: 6 });
+});
+
+test('the game still works when analytics is blocked', () => {
+  const g = boot();
+  delete g.window.gtag;
+  g.cards()[0].click(); g.cards()[1].click(); g.advance(1000);
+  assert.deepEqual(g.errors, []);
+  assert.equal(g.text('movesCount'), '1');
 });

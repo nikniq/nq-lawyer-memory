@@ -136,6 +136,8 @@ if [ -z "$SELECTION" ]; then
   echo "55 : COPY deploy.sh to the server"
   echo "56 : VERIFY: run the post-deploy checks on the server"
   echo "57 : PRUNE: dry-run of old daily score cleanup"
+  echo "58 : STATS: how the game is being played"
+  echo "59 : REMOVE a leaderboard entry by id or name"
   echo ----------------------------------------------
   echo "99 : HISTORY: what this script has done"
   echo -------------------------------------------------------------
@@ -209,7 +211,7 @@ case "$SELECTION" in
       need_param "Seeder class"
       remote php artisan db:seed --class="$PARAM2" --force ;;
   41) banner "DB backup"
-      remote "mkdir -p storage/backups && if [ -f database/database.sqlite ]; then cp database/database.sqlite storage/backups/db-\$(date +%Y%m%d-%H%M%S).sqlite; else echo 'Not sqlite — use mysqldump manually'; fi && ls -lh storage/backups | tail -5" ;;
+      remote "php artisan db:backup && ls -lh storage/backups | tail -5" ;;
   42) banner "Pull latest backup"
       mkdir -p ./log
       LATEST=$(remote "ls -t storage/backups 2>/dev/null | head -1")
@@ -238,6 +240,11 @@ case "$SELECTION" in
       remote php artisan ops:verify-deploy ;;
   57) banner "Prune (dry run)"
       remote php artisan scores:prune --dry-run ;;
+  58) banner "Game stats"
+      remote php artisan game:stats ;;
+  59) banner "Remove score"
+      need_param "Score id or exact name"
+      remote_tty php artisan scores:remove "'$PARAM2'" ;;
 
   99) banner "History"
       tail -n 40 ./log/history.log 2>/dev/null || echo "(empty)" ;;

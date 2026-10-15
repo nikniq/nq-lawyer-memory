@@ -139,7 +139,20 @@
     customText: $('customText'), customSave: $('customSave'), customClear: $('customClear'), customMsg: $('customMsg'),
     toasts: $('toasts'),
     confetti: $('confetti'),
+    announcer: $('announcer'),
   };
+
+  // Screen readers get the same beats sighted players see: match, miss, turn, win.
+  function announce(text) {
+    el.announcer.textContent = '';
+    setTimeout(() => { el.announcer.textContent = text; }, 30);
+  }
+
+  // Analytics events go through gtag when it is present, and are ignored otherwise.
+  function track(event, params = {}) {
+    try { if (typeof window.gtag === 'function') window.gtag('event', event, params); } catch { /* ignore */ }
+  }
+  const gameParams = () => ({ deck: prefs.mode, level: prefs.level, rules: prefs.rules, daily: state.daily ? 1 : 0 });
 
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
@@ -317,6 +330,7 @@
     unlocked[id] = Date.now();
     save(KEYS.ach, unlocked);
     sfx.unlock();
+    track('achievement', { id });
     toast(`<strong>${a.icon} Achievement: ${escapeHtml(a.name)}</strong><span>${escapeHtml(a.desc)}</span>`, 'toast--ach');
     renderAchievements();
   }
@@ -581,6 +595,7 @@
     save(KEYS.stats, stats);
     renderStatsLine();
     updateStats();
+    track('game_start', gameParams());
   }
 
   // The computer notices every card that is turned face up, and remembers it
@@ -634,6 +649,8 @@
       if (state.streak >= 2 && state.player === 0) [a, b].forEach((c) => cardEl(c.key).classList.add('is-combo'));
       updateStats();
       renderPlayers();
+      const who = isVersus() ? (state.player === 0 ? PLAYERS[0].name : opponent().name) + ' matched' : 'Match';
+      announce(`${who}: ${a.face === 'icon' ? a.title : a.term}. ${state.matched} of ${pairsForGame()} pairs.`);
       if (state.matched === pairsForGame()) { setTimeout(win, 600); return; }
       if (isComputer() && state.player === 1) scheduleAi();
       return;
@@ -642,6 +659,7 @@
     if (state.player === 0 || !isVersus()) state.streak = 0;
     state.locked = true;
     sfx.miss();
+    announce(`No match: ${a.label} and ${b.label}.`);
     [a, b].forEach((c) => {
       state.misses[c.id] = (state.misses[c.id] || 0) + 1;
       cardEl(c.key).classList.add('is-miss');
@@ -662,6 +680,7 @@
       if (isVersus() && !state.finished) {
         state.player = 1 - state.player;
         renderPlayers();
+        announce(state.player === 0 ? `${PLAYERS[0].name}, your turn.` : `${opponent().name}'s turn.`);
         if (isComputer() && state.player === 1) scheduleAi();
       }
     }, MISMATCH_DELAY);
@@ -844,6 +863,8 @@
       el.modalEmoji.textContent = tie ? '🤝' : (isComputer() && !you ? '🤖' : '🏆');
       el.winTitle.textContent = tie ? 'Hung jury!' : `${you ? PLAYERS[0].emoji + ' ' + PLAYERS[0].name : other.emoji + ' ' + other.name} wins!`;
       el.winText.textContent = `${PLAYERS[0].name} ${p0} · ${other.name} ${p1} · ${state.moves} moves · ${formatTime(state.elapsed)}`;
+      announce(`${el.winTitle.textContent} ${el.winText.textContent}`);
+      track('game_win', { ...gameParams(), moves: state.moves, time_s: Math.round(state.elapsed / 1000), result: tie ? 'tie' : (you ? 'win' : 'loss') });
       unlock('first');
       if (!tie && (you || !isComputer())) unlock('versus');
       if (isComputer() && you && (prefs.level === 'hard' || prefs.level === 'expert')) unlock('bot');
@@ -874,6 +895,8 @@
     }
     el.overlay.hidden = false;
     (isOnline() ? (prefs.name ? el.submitBtn : el.nameInput) : el.playAgain).focus();
+    announce(`${el.winTitle.textContent} ${el.winText.textContent}${isRecord ? ' New personal best.' : ''}`);
+    track('game_win', { ...gameParams(), moves: state.moves, time_s: Math.round(state.elapsed / 1000), score, hints: state.hintsUsed, record: isRecord ? 1 : 0 });
     checkAchievements();
   }
 
@@ -898,6 +921,8 @@
     renderReview();
     el.overlay.hidden = false;
     el.playAgain.focus();
+    announce(`Mistrial. ${el.winText.textContent}`);
+    track('game_lose', { ...gameParams(), moves: state.moves, pairs_found: state.matched });
   }
 
   // ---------- confetti ----------
@@ -989,6 +1014,7 @@
       if (!res.ok) throw new Error(data.message || 'Could not file your result.');
       el.submitMsg.textContent = `Filed! You rank #${data.rank} on this board.`;
       el.submitForm.hidden = true;
+      track('score_filed', { ...gameParams(), rank: data.rank, score: data.score });
       loadLeaderboard();
       loadSummary();
     } catch (err) {
@@ -1010,6 +1036,7 @@
       text = `${head}\n⚖️ ${score} pts · ${state.moves} moves · ${formatTime(state.elapsed)}\n${location.origin}`;
     }
     try {
+      track('share', gameParams());
       if (navigator.share) { await navigator.share({ text }); return; }
       await navigator.clipboard.writeText(text);
       el.shareBtn.textContent = 'Copied!';
