@@ -5,7 +5,7 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test": "node --test tests/js/",
+        "test": "node --test \"tests/js/*.test.mjs\"",
         "e2e": "node tests/e2e/smoke.mjs"
     },
     "devDependencies": {
