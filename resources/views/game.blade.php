@@ -7,7 +7,17 @@
   <title>{{ config('app.name') }}</title>
   <meta name="description" content="A legal-themed memory game. Match icons or legal terms to their definitions, beat the daily case, and climb the leaderboard.">
   <meta name="theme-color" content="#0f172a">
-  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=4">
+  <link rel="canonical" href="{{ url('/') }}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ config('app.name') }}">
+  <meta property="og:description" content="Match legal icons, terms and Latin maxims. Beat the daily case, outwit Counsel Bot, and climb the leaderboard.">
+  <meta property="og:url" content="{{ url('/') }}">
+  <meta property="og:image" content="{{ asset('og.png') }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ config('app.name') }}">
+  <meta name="twitter:description" content="A legal-themed memory game with a daily case and online leaderboard.">
+  <meta name="twitter:image" content="{{ asset('og.png') }}">
+  <link rel="stylesheet" href="{{ asset('css/game.css') }}?v=5">
   <link rel="manifest" href="{{ asset('manifest.json') }}">
   <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{{ asset('icon.svg') }}">
@@ -165,6 +175,6 @@
     </div>
   </div>
 
-  <script src="{{ asset('js/game.js') }}?v=4" defer></script>
+  <script src="{{ asset('js/game.js') }}?v=5" defer></script>
 </body>
 </html>

@@ -59,6 +59,23 @@ class ScoreTest extends TestCase
             ->assertJson(['players' => 0, 'avg_moves' => null, 'beat_percent' => null]);
     }
 
+    public function test_offensive_names_are_refused(): void
+    {
+        $this->postJson('/api/scores', ['name' => 'Sh1t Head', 'level' => 'normal', 'mode' => 'icons', 'moves' => 10, 'time_ms' => 30000])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Please choose a different name.');
+
+        $this->postJson('/api/scores', ['name' => 'Cassandra', 'level' => 'normal', 'mode' => 'icons', 'moves' => 10, 'time_ms' => 30000])
+            ->assertCreated();
+    }
+
+    public function test_leaderboard_cache_is_refreshed_on_new_score(): void
+    {
+        $this->getJson('/api/scores?level=easy&mode=icons')->assertOk()->assertJsonCount(0, 'scores');
+        $this->postJson('/api/scores', ['name' => 'Eve', 'level' => 'easy', 'mode' => 'icons', 'moves' => 8, 'time_ms' => 20000])->assertCreated();
+        $this->getJson('/api/scores?level=easy&mode=icons')->assertOk()->assertJsonCount(1, 'scores');
+    }
+
     public function test_implausible_results_are_rejected(): void
     {
         $this->postJson('/api/scores', ['name' => 'Cheat', 'level' => 'hard', 'mode' => 'icons', 'moves' => 3, 'time_ms' => 30000])->assertStatus(422);

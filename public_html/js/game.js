@@ -228,7 +228,7 @@
     return a;
   }
 
-  const dailyDate = () => new Date().toISOString().slice(0, 10);
+  const dailyDate = () => new Date(Date.now()).toISOString().slice(0, 10);
   const dailyNumber = () => Math.floor((Date.now() - DAILY_EPOCH) / 86400000) + 1;
   const yesterday = () => new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
@@ -580,6 +580,7 @@
     stats.played++;
     save(KEYS.stats, stats);
     renderStatsLine();
+    updateStats();
   }
 
   // The computer notices every card that is turned face up, and remembers it

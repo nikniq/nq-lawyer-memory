@@ -1,7 +1,7 @@
 // Offline support. Network first so a deploy is picked up immediately;
 // the cache is only a fallback when the network is unavailable.
-const CACHE = 'legal-memory-v4';
-const ASSETS = ['/', '/css/game.css?v=4', '/js/game.js?v=4', '/manifest.json', '/icon.svg'];
+const CACHE = 'legal-memory-v5';
+const ASSETS = ['/', '/css/game.css?v=5', '/js/game.js?v=5', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Score;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 class ScoreController extends Controller
@@ -17,7 +18,7 @@ class ScoreController extends Controller
             'daily' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
-        $scores = Score::query()
+        $scores = Cache::remember($this->cacheKey('top', $data), 30, fn () => Score::query()
             ->where('level', $data['level'])
             ->where('mode', $data['mode'])
             ->where('daily', $data['daily'] ?? null)
@@ -25,7 +26,7 @@ class ScoreController extends Controller
             ->orderBy('moves')
             ->orderBy('time_ms')
             ->limit(10)
-            ->get(['name', 'moves', 'time_ms', 'score', 'created_at']);
+            ->get(['name', 'moves', 'time_ms', 'score', 'created_at']));
 
         return response()->json(['scores' => $scores]);
     }
@@ -43,27 +44,33 @@ class ScoreController extends Controller
             'moves' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $base = Score::query()
+        $base = fn () => Score::query()
             ->where('level', $data['level'])
             ->where('mode', $data['mode'])
             ->where('daily', $data['daily'] ?? null);
 
-        $players = (clone $base)->count();
-        $avgMoves = $players ? round((clone $base)->avg('moves'), 1) : null;
-        $avgTime = $players ? (int) round((clone $base)->avg('time_ms')) : null;
+        $totals = Cache::remember($this->cacheKey('summary', $data), 30, function () use ($base) {
+            $players = $base()->count();
+
+            return [
+                'players' => $players,
+                'avg_moves' => $players ? round($base()->avg('moves'), 1) : null,
+                'avg_time_ms' => $players ? (int) round($base()->avg('time_ms')) : null,
+            ];
+        });
 
         $beat = null;
-        if ($players && isset($data['moves'])) {
-            $worse = (clone $base)->where('moves', '>', $data['moves'])->count();
-            $beat = (int) round($worse / $players * 100);
+        if ($totals['players'] && isset($data['moves'])) {
+            $worse = $base()->where('moves', '>', $data['moves'])->count();
+            $beat = (int) round($worse / $totals['players'] * 100);
         }
 
-        return response()->json([
-            'players' => $players,
-            'avg_moves' => $avgMoves,
-            'avg_time_ms' => $avgTime,
-            'beat_percent' => $beat,
-        ]);
+        return response()->json([...$totals, 'beat_percent' => $beat]);
+    }
+
+    private function cacheKey(string $what, array $data): string
+    {
+        return "scores:{$what}:{$data['level']}:{$data['mode']}:".($data['daily'] ?? 'all');
     }
 
     public function store(Request $request): JsonResponse
@@ -76,6 +83,10 @@ class ScoreController extends Controller
             'moves' => ['required', 'integer', 'min:1', 'max:999'],
             'time_ms' => ['required', 'integer', 'min:1', 'max:86400000'],
         ]);
+
+        if (Score::isOffensive($data['name'])) {
+            return response()->json(['message' => 'Please choose a different name.'], 422);
+        }
 
         $pairs = Score::PAIRS[$data['level']];
 
@@ -91,6 +102,9 @@ class ScoreController extends Controller
             'daily' => $data['daily'] ?? null,
             'score' => Score::compute($data['level'], $data['moves'], $data['time_ms']),
         ]);
+
+        Cache::forget($this->cacheKey('top', $data));
+        Cache::forget($this->cacheKey('summary', $data));
 
         $rank = Score::query()
             ->where('level', $score->level)

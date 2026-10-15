@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs><radialGradient id="g" cx="50%" cy="-10%" r="90%"><stop offset="0" stop-color="#1e293b"/><stop offset=".6" stop-color="#0f172a"/></radialGradient></defs>
+  <rect width="1200" height="630" fill="url(#g)"/>
+  <g transform="translate(600 200)" fill="none" stroke="#f59e0b" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><line x1="0" y1="-90" x2="0" y2="90"/><line x1="-150" y1="-50" x2="150" y2="-50"/><line x1="-150" y1="-50" x2="-200" y2="40"/><line x1="-150" y1="-50" x2="-100" y2="40"/><line x1="150" y1="-50" x2="100" y2="40"/><line x1="150" y1="-50" x2="200" y2="40"/><path d="M-210 40 A60 30 0 0 0 -90 40 Z" fill="#f59e0b"/><path d="M90 40 A60 30 0 0 0 210 40 Z" fill="#f59e0b"/><line x1="-60" y1="100" x2="60" y2="100" stroke-width="14"/><circle cx="0" cy="-95" r="12" fill="#f59e0b"/></g>
+  <text x="600" y="380" font-family="Georgia, serif" font-size="72" font-weight="700" fill="#f8fafc" text-anchor="middle">Legal Memory Game</text>
+  <text x="600" y="450" font-family="Georgia, serif" font-size="34" fill="#94a3b8" text-anchor="middle">Icons · Legal terms · Latin maxims · Daily Case · Counsel Bot</text>
+</svg>
