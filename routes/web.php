@@ -5,8 +5,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => view('game'))->name('game');
 
-Route::prefix('api')->middleware('throttle:30,1')->group(function () {
-    Route::get('/scores', [ScoreController::class, 'index'])->name('scores.index');
-    Route::post('/scores', [ScoreController::class, 'store'])->name('scores.store');
-    Route::get('/scores/summary', [ScoreController::class, 'summary'])->name('scores.summary');
+Route::prefix('api')->group(function () {
+    Route::get('/scores', [ScoreController::class, 'index'])->middleware('throttle:60,1')->name('scores.index');
+    Route::get('/scores/summary', [ScoreController::class, 'summary'])->middleware('throttle:60,1')->name('scores.summary');
+    // A human cannot finish more than a handful of games a minute.
+    Route::post('/scores', [ScoreController::class, 'store'])->middleware('throttle:6,1')->name('scores.store');
 });

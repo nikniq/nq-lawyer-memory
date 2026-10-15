@@ -261,6 +261,9 @@ select:focus-visible, .btn:focus-visible, .card:focus-visible {
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
 
+.error-page { margin: 2rem auto; animation: none; }
+.error-page .btn { display: inline-block; text-decoration: none; }
+
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;

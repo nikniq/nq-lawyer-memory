@@ -134,6 +134,8 @@ if [ -z "$SELECTION" ]; then
   echo "53 : UP: bring the site back"
   echo "54 : SHELL: open an SSH session in the app directory"
   echo "55 : COPY deploy.sh to the server"
+  echo "56 : VERIFY: run the post-deploy checks on the server"
+  echo "57 : PRUNE: dry-run of old daily score cleanup"
   echo ----------------------------------------------
   echo "99 : HISTORY: what this script has done"
   echo -------------------------------------------------------------
@@ -231,6 +233,11 @@ case "$SELECTION" in
   55) banner "Copy deploy.sh to server"
       $APP_SCP ./deploy.sh "$REMOTE:~/$REMOTE_APP/deploy.sh"
       remote chmod +x deploy.sh ;;
+
+  56) banner "Verify deploy"
+      remote php artisan ops:verify-deploy ;;
+  57) banner "Prune (dry run)"
+      remote php artisan scores:prune --dry-run ;;
 
   99) banner "History"
       tail -n 40 ./log/history.log 2>/dev/null || echo "(empty)" ;;

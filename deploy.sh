@@ -7,6 +7,9 @@
 #
 # One command for the whole sequence so pull-without-migrate can never ship a
 # "Base table or view not found" 500. Its LOCAL counterpart is cx.sh.
+#
+# The scheduler (daily score pruning) needs one cron entry on the server:
+#   * * * * * cd ~/www/<site> && php artisan schedule:run >> /dev/null 2>&1
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -67,7 +70,11 @@ php artisan optimize
 echo "→ storage link"
 php artisan storage:link >/dev/null 2>&1 || true
 
-echo "→ health check"
-php artisan about --only=environment | head -5 || true
+echo "→ verify"
+php artisan ops:verify-deploy
+
+if grep -qE '^APP_ENV=production' .env && grep -qE '^APP_DEBUG=true' .env; then
+    echo "⚠ APP_DEBUG=true in production .env — visitors can see stack traces. Set it to false."
+fi
 
 echo "✓ deployed $(git log --oneline -1)"

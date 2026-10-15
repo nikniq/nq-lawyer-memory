@@ -1,59 +1,89 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Legal Memory Game
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A legal-themed memory matching game built on Laravel. Flip cards, find the pairs, close the case.
 
-## About Laravel
+Live at https://lawyermemory.nikniq.com
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Features
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Decks**: Icons, Legal terms (term ↔ definition), Latin maxims, and your own custom deck.
+- **Levels**: Easy (6 pairs) to Expert (16 pairs).
+- **Rules**: Classic, Trial (beat the clock), Versus (two players, hot seat), and Versus Counsel Bot (a computer opponent whose memory sharpens with the level).
+- **Daily Case**: a date-seeded board that is the same for everyone, with its own leaderboard and a shareable result.
+- **Scoring, hints, streaks, achievements**, lifetime stats, and a review of the terms you missed most.
+- **Online leaderboard**: top 10 per deck, level and daily date, with a summary of how everyone else did.
+- Sound and haptics, light/dark theme, keyboard play, installable as a PWA with offline support.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Layout
 
-## Learning Laravel
+| Path | What it is |
+|------|------------|
+| `public_html/js/game.js` | The whole game: decks, rules, scoring, Counsel Bot, leaderboard client. No build step. |
+| `public_html/css/game.css` | Styles, including light theme and reduced-motion handling. |
+| `resources/views/game.blade.php` | The single page. |
+| `app/Http/Controllers/ScoreController.php` | Leaderboard API: list, summary, file a result. |
+| `app/Models/Score.php` | Score formula (mirrored in the JS) and the name filter. |
+| `config/game.php` | Blocked leaderboard words. |
+| `app/Console/Commands/` | `ops:verify-deploy` and `scores:prune`. |
+| `tests/Feature/` | PHP tests for the API, ops commands and headers. |
+| `tests/js/` | Headless (jsdom) tests that play the real game script through every mode. |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+The web root is `public_html`, not `public` (set in `bootstrap/app.php`).
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Local development
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```sh
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+php artisan migrate
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Then open http://localhost:8000. The front end is plain JS and CSS served from `public_html`, so there is nothing to build.
 
-## Contributing
+## Tests
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```sh
+php artisan test        # PHP: API, commands, headers, error pages
+npm test                # JS: plays every game mode in jsdom
+./vendor/bin/pint       # code style
+```
 
-## Code of Conduct
+CI runs all three on every push and pull request (`.github/workflows/ci.yml`).
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## API
 
-## Security Vulnerabilities
+All routes live under `/api` and require the session CSRF token for POST.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+| Method | Route | Purpose |
+|--------|-------|---------|
+| GET | `/api/scores?level=&mode=&daily=` | Top 10 for a board. Cached 30 s. |
+| GET | `/api/scores/summary?level=&mode=&daily=&moves=` | Players, average moves and time, and the percent of players beaten by `moves`. |
+| POST | `/api/scores` | File a result: `name, level, mode, daily?, moves, time_ms`. Implausible results and offensive names are rejected. Limited to 6 per minute. |
 
-## License
+The score is recomputed server-side from moves and time: 1,000 per pair, minus 25 per move beyond the minimum, minus 2 per second.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-# nq-lawyer-memory
+## Deployment
+
+The server deploys by pulling from GitHub. Two scripts drive it:
+
+- `deploy.sh` runs **on the server**: pull, `composer install` if the lockfile moved, create the SQLite file if missing, migrate, optional seed, rebuild caches, then `ops:verify-deploy`.
+- `cx.sh` runs **locally** as a numbered menu over SSH: deploy, what's live, migrations, caches, logs, health, backups, maintenance mode. It refuses to deploy with unpushed commits. Copy `vars.sh.example` to `vars.sh` and fill in the host.
+
+The scheduler prunes daily-case scores older than 30 days. It needs one cron entry on the server:
+
+```
+* * * * * cd ~/www/<site> && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Static assets are referenced with `?v=N`; bump the number in `game.blade.php` and `sw.js` when changing CSS or JS so browsers and the service worker pick up the new files.
+
+## Production checklist
+
+- `APP_ENV=production`, `APP_DEBUG=false` (deploy.sh warns if not).
+- `APP_KEY` set.
+- `storage/` writable; `database/database.sqlite` exists.
+- Cron entry above for pruning.
